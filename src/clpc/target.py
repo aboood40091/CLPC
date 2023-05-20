@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+
+# Built-in
+import os
+
+
+# Local
+from .common import NormalizePath
+from .module import Module
+
+
+class Target:
+    def __init__(self):
+        self.addrMap = None
+        self.baseRpx = None
+
+        self.remove_Modules = []
+        self.remove_Defines = []
+
+        self.add_Modules = {}
+        self.add_Defines = {}
+
+        self.extendsName = None
+
+    @staticmethod
+    def fromObj(obj, name, proj, is_template, error=print):
+        target_field_name = "%s %r" % ("Template" if is_template else "Target", name)
+        modulesBaseDir = proj.modulesBaseDir
+
+        ### Selected Options Sanity Check ###
+        # print("%s Selected Options Sanity Check" % target_field_name)
+
+        available_options = [
+            "AddrMap",
+            "BaseRpx",
+            "Remove/Modules",
+            "Add/Modules",
+            "Remove/Defines",
+            "Add/Defines"
+        ]
+        if not is_template:
+            available_options.append("Extends")
+
+        available_options_error_msg = "Unrecognized option in %s: %s" % (target_field_name, "%r")
+
+        for k in obj:
+            if k not in available_options:
+                error(available_options_error_msg % k)
+                return None
+
+        ### Target Initialization ###
+        # print("%s Target Initialization" % target_field_name)
+
+        target = Target()
+        default_name = name
+
+        ### Extending Template Name Reading ###
+
+        if "Extends" in obj:
+            extends_name = proj.processString("%s Extending Template Name" % target_field_name, obj["Extends"], error=error)
+            if extends_name is None:
+                return None
+
+            target.extendsName = extends_name
+            default_name = extends_name
+
+        ### Address Offsets Map Name Reading ###
+        # print("%s Address Offsets Map Name Reading" % target_field_name)
+
+        if "AddrMap" not in obj:
+            target.addrMap = default_name
+
+        else:
+            addr_map = proj.readString(obj, "AddrMap", "%s Address Offsets Map Name" % target_field_name, 0x01020304, True, error=error)
+            if addr_map is None:
+                return None
+
+            if addr_map != 0x01020304:
+                target.addrMap = addr_map
+
+        ### Base RPX Filename Reading ###
+        # print("%s Base RPX Filename Reading" % target_field_name)
+
+        if "BaseRpx" not in obj:
+            target.baseRpx = default_name
+
+        else:
+            base_rpx = proj.readString(obj, "BaseRpx", "%s Base RPX Filename" % target_field_name, 0x01020304, True, error=error)
+            if base_rpx is None:
+                return None
+
+            if base_rpx != 0x01020304:
+                target.baseRpx = base_rpx
+
+        ### Modules Removal List Reading ###
+        # print("%s Modules Removal List Reading" % target_field_name)
+
+        if "Remove/Modules" in obj:
+            modules_names = obj["Remove/Modules"]
+            if modules_names is not None:
+                if not isinstance(modules_names, list):
+                    error("In %s, expected \"Remove/Modules\" to be a list of strings" % target_field_name)
+                    return None
+
+                modules_names_set = set()
+                remove_modules_field_name = "%s \"Remove/Modules\"" % target_field_name
+                normalize_path = NormalizePath
+
+                for filename in modules_names:
+                    filename = proj.processString(remove_modules_field_name, filename, error=error)
+                    if filename is None:
+                        return None
+
+                    file_path = filename + ".yaml"
+                    if not os.path.isabs(file_path):
+                        file_path = os.path.join(modulesBaseDir, file_path)
+
+                    modules_names_set.add(normalize_path(file_path))
+
+                target.remove_Modules = tuple(modules_names_set)
+
+        ### Modules Addition List Reading ###
+        # print("%s Modules Addition List Reading" % target_field_name)
+
+        if "Add/Modules" in obj:
+            modules_names = obj["Add/Modules"]
+            if modules_names is not None:
+                if not isinstance(modules_names, list):
+                    error("In %s, expected \"Add/Modules\" to be a list of strings" % target_field_name)
+                    return None
+
+                modules_names_set = set()
+                add_modules_field_name = "%s \"Add/Modules\"" % target_field_name
+                normalize_path = NormalizePath
+
+                for filename in modules_names:
+                    filename = proj.processString(add_modules_field_name, filename, error=error)
+                    if filename is None:
+                        return None
+
+                    file_path = filename + ".yaml"
+                    if not os.path.isabs(file_path):
+                        file_path = os.path.join(modulesBaseDir, file_path)
+
+                    modules_names_set.add(normalize_path(file_path))
+
+                for file_path in modules_names_set:
+                    if file_path in target.remove_Modules:
+                        error("In %s, trying to add module that needs to be removed within the same template/target: %s" % (target_field_name, file_path))
+                        return None
+
+                modules = {}
+
+                for file_path in modules_names_set:
+                    if file_path in proj.fileCache:
+                        module = proj.fileCache[file_path]
+
+                    else:
+                        module = Module.fromYaml(file_path, proj, error)
+                        if module is None:
+                            return None
+
+                        proj.fileCache[file_path] = module
+
+                    modules[file_path] = module
+
+                target.add_Modules = modules
+
+        ### Defines Removal List Reading ###
+        # print("%s Defines Removal List Reading" % target_field_name)
+
+        if "Remove/Defines" in obj:
+            defines = obj["Remove/Defines"]
+            if defines is not None:
+                if not isinstance(defines, list):
+                    error("In %s, expected \"Remove/Defines\" to be a list of strings" % target_field_name)
+                    return None
+
+                is_str = lambda s: isinstance(s, str)
+                is_non_null_str = lambda s: s and is_str(s)
+                is_valid_key = lambda k: is_non_null_str(k) and k.isidentifier()
+
+                defines_set = set()
+                remove_key_error_msg = "In %s, invalid key in \"Remove/Defines\": %s" % (target_field_name, "%r")
+
+                for k in defines:
+                    if not is_valid_key(k):
+                        error(remove_key_error_msg % k)
+                        return None
+
+                    defines_set.add(k)
+
+                target.remove_Defines = tuple(defines_set)
+
+        ### Defines Addition List Reading ###
+        # print("%s Defines Addition List Reading" % target_field_name)
+
+        if "Add/Defines" in obj:
+            defines = obj["Add/Defines"]
+            if defines is not None:
+                if not isinstance(defines, dict):
+                    error("In %s, expected \"Add/Defines\" to be a key-value mapping" % target_field_name)
+                    return None
+
+                is_str = lambda s: isinstance(s, str)
+                is_non_null_str = lambda s: s and is_str(s)
+                is_valid_key = lambda k: is_non_null_str(k) and k.isidentifier()
+
+                new_defines = {}
+                add_key_error_msg = "In %s, invalid key in \"Add/Defines\": %s" % (target_field_name, "%r")
+                add_value_field_name = "\"Add/Defines\" for key %s in %s" % ("%r", target_field_name)
+
+                for k, v in defines.items():
+                    if not is_valid_key(k):
+                        error(add_key_error_msg % k)
+                        return None
+
+                    if v is not None:
+                        v = proj.processString(add_value_field_name % k, v, error=error)
+                        if v is None:
+                            return None
+
+                    new_defines[k] = v
+
+                target.add_Defines = new_defines
+
+        ### Success ###
+        # print("%s Success" % target_field_name)
+
+        return target

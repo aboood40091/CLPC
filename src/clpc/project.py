@@ -80,12 +80,12 @@ class Project:
         """
         Notes:
         * 'default' is None <-> Field is required.
-        * 'default' == "" -> 'allow_empty' must be True.
+        * 'default' == '' -> 'allow_empty' must be True.
         * 'allow_explicit_null' is True -> Field must be optional (i.e., 'default' must not be None).
         """
 
         assert not allow_explicit_null or default is not None
-        assert default != "" or allow_empty
+        assert default != '' or allow_empty
 
         if key not in obj:
             if default is None:
@@ -104,10 +104,10 @@ class Project:
 
             s_valid = False
 
-        elif s == "":
+        elif s == '':
             if allow_empty:
                 # print("return \"\" (allow_empty)")
-                return ""
+                return ''
 
             s_valid = False
 
@@ -119,10 +119,10 @@ class Project:
                     # print("return None (processVariables)")
                     return None
 
-                if s == "":
+                if s == '':
                     if allow_empty:
                         # print("return \"\" (allow_empty after processVariables)")
-                        return ""
+                        return ''
 
                     s_valid = False
 
@@ -134,10 +134,10 @@ class Project:
         return s
 
     def processString(self, field_name, s, allow_empty=False, error=print):
-        if s == "":
+        if s == '':
             if allow_empty:
                 # print("return \"\" (allow_empty)")
-                return ""
+                return ''
 
             s_valid = False
 
@@ -149,10 +149,10 @@ class Project:
                     # print("return None (processVariables)")
                     return None
 
-                if s == "":
+                if s == '':
                     if allow_empty:
                         # print("return \"\" (allow_empty after processVariables)")
-                        return ""
+                        return ''
 
                     s_valid = False
 

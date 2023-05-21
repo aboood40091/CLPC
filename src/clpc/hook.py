@@ -253,7 +253,7 @@ class PatchHook(BasicHook):
             if data is None:
                 return None
 
-            hook.data = "".join(data.split())
+            hook.data = ''.join(data.split())
 
         else:
             if type_ & patch_type_type.Array:

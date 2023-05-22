@@ -176,23 +176,12 @@ class Module:
                         error(files_available_options_error_msg % k)
                         return None
 
-                ### C Files List Reading ###
-                # print("%s C Files List Reading" % module_field_name)
+                ### Files List Reading Per Language ###
 
-                if not module.readFileList(file_lists, "C",         0, module_field_name, proj, error):
-                    return None
-
-                ### C++ Files List Reading ###
-                # print("%s C++ Files List Reading" % module_field_name)
-
-                if not module.readFileList(file_lists, "C++",       1, module_field_name, proj, error):
-                    return None
-
-                ### Assembly Files List Reading ###
-                # print("%s Assembly Files List Reading" % module_field_name)
-
-                if not module.readFileList(file_lists, "Assembly",  2, module_field_name, proj, error):
-                    return None
+                for i, lang in enumerate(("C", "C++", "Assembly")):
+                    # print("%s \"%s\" Files List Reading" % (module_field_name, lang))
+                    if not module.readFileList(file_lists, lang, i, module_field_name, proj, error):
+                        return None
 
         ### Hooks List Reading ###
         # print("%s Hooks List Reading" % module_field_name)

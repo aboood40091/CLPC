@@ -3,11 +3,12 @@
 
 
 # Built-in
-from ntpath import basename as path_basename
+import glob
 import os
 
 
 # Local
+from .common import IsValidFilename
 from .common import NormalizePath
 from .hook import BranchHook
 from .hook import FuncPtrHook
@@ -52,16 +53,52 @@ class Module:
 
         files_set = set()
         normalize_path = NormalizePath
+        join_path = os.path.join
+        is_file = os.path.isfile
+        i_glob = glob.iglob
+        is_valid_filename = IsValidFilename
 
         for file_path in files:
+            base_file_path = file_path
+
             file_path = proj.processString(field_name_full, file_path, error=error)
             if file_path is None:
                 return False
 
             if not os.path.isabs(file_path):
-                file_path = os.path.join(srcBaseDir, file_path)
+                file_path = join_path(srcBaseDir, file_path)
 
-            files_set.add(normalize_path(file_path))
+            file_path = normalize_path(file_path)
+            dir_path, filename = os.path.split(file_path)
+
+            if filename.startswith("*."):
+                if len(filename) == 2 or not is_valid_filename(filename[1:]):
+                    error("In %s, folder scan path contains an invalid extension: %r" % (field_name_full, base_file_path))
+                    return False
+
+                scan_path = join_path(dir_path, '*' + filename)
+                scan_files = (scan_file_path for scan_file_path in i_glob(scan_path, recursive=True) if is_file(scan_file_path))
+                for scan_file_path in scan_files:
+                    files_set.add(normalize_path(scan_file_path))
+
+            elif filename.startswith("**."):
+                if len(filename) == 3 or not is_valid_filename(filename[2:]):
+                    error("In %s, folder recursive scan path contains an invalid extension: %r" % (field_name_full, base_file_path))
+                    return False
+
+                scan_path = join_path(dir_path, "**", filename)
+                scan_files = (scan_file_path for scan_file_path in i_glob(scan_path, recursive=True) if is_file(scan_file_path))
+                for scan_file_path in scan_files:
+                    files_set.add(normalize_path(scan_file_path))
+
+            else:
+                if not is_file(file_path):
+                    error("In %s,\n"
+                          "File not found: %r\n"
+                          "Path resolved to: %r" % (field_name_full, base_file_path, file_path))
+                    return False
+
+                files_set.add(file_path)
 
         files_new.extend(files_set)
 
@@ -86,12 +123,12 @@ class Module:
             error("Unexpected file format for file: %r" % file_path)
             return None
 
-        name = os.path.splitext(path_basename(file_path))[0]
-        module_field_name = "Module %r" % name
-
-        path = os.path.dirname(file_path)
+        path, name = os.path.split(file_path)
         if not os.path.isabs(path):
             path = os.path.abspath(path)
+
+        name = os.path.splitext(name)[0]
+        module_field_name = "Module %r" % name
 
         ### Selected Options Sanity Check ###
         # print("%s Selected Options Sanity Check" % module_field_name)

@@ -11,9 +11,47 @@ def NormalizePath(path):
     return os.path.normcase(os.path.normpath(path))
 
 
+def printModule(name, module, base_indent_level):
+    indent_level = base_indent_level
+
+    def print_indent(*args, **kargs):
+        nonlocal indent_level
+        print("  " * indent_level, end='')
+        print(*args, **kargs)
+
+    print_indent(name)
+
+    indent_level += 1
+
+    strings = (
+        "\"C\" Files:",
+        "\"C++\" Files:",
+        "\"Assembly\" Files:",
+    )
+
+    for i, files in enumerate(module.files):
+        if not files:
+            continue
+
+        print_indent(strings[i])
+
+        indent_level += 1
+
+        for file_path in files:
+            print_indent(file_path)
+
+        indent_level -= 1
+
+    indent_level -= 1
+
+
 def main():
+    def error(*args, **kargs):
+        print("While trying to parse project, encountered the following error:\n")
+        print(*args, **kargs)
+
     file_path = input("Enter project.yaml path: ")
-    proj = Project.fromYaml(file_path)
+    proj = Project.fromYaml(file_path, error=error)
     if proj is None:
         return
 
@@ -45,18 +83,18 @@ def main():
 
     if proj.modules:
         print("Project Modules:")
-        for item in sorted(proj.modules.keys()):
-            print("  %s" % item)
+        for name, module in sorted(proj.modules.items(), key=lambda item: item[0]):
+            printModule(name, module, 1)
 
     if proj.templates:
         print("Project Templates:")
-        for item in sorted(proj.templates.keys()):
-            print("  %s" % item)
+        for name, template in sorted(proj.templates.items(), key=lambda item: item[0]):
+            print("  %s" % name)
 
     if proj.targets:
         print("Project Targets:")
-        for item in sorted(proj.targets.keys()):
-            print("  %s" % item)
+        for name, target in sorted(proj.targets.items(), key=lambda item: item[0]):
+            print("  %s" % name)
 
 
 if __name__ == "__main__":

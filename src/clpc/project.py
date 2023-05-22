@@ -3,6 +3,7 @@
 
 
 # Built-in
+# from json import dumps as json_dumps
 import os
 
 
@@ -12,6 +13,9 @@ from .common import NormalizePath
 from .common import WUAPPS_VERSION_MAX, WUAPPS_VERSION_MAX_STR
 from .common import WUAPPS_VERSION_MIN, WUAPPS_VERSION_MIN_STR
 from .module import Module
+from .symlang.parser import resolve as resolve_symbols
+from .symlang.parser import start as parse_start
+from .symlang.reader import TokenReader
 from .target import Target
 
 
@@ -37,6 +41,7 @@ class Project:
         self.defines = {}
         self.templates = {}
         self.targets = {}
+        self.symbols = {}
 
         self.defaultBuildOptions = {
             "-c99":                     None,
@@ -165,6 +170,8 @@ class Project:
 
     @staticmethod
     def fromYaml(file_path, error=print):
+        normalize_path = NormalizePath
+
         ### File Loading ###
         # print("Project File Loading")
 
@@ -307,7 +314,6 @@ class Project:
                     return None
 
                 include_dirs_set = set()
-                normalize_path = NormalizePath
 
                 for include_dir in include_dirs:
                     include_dir = proj.processString("\"IncludeDirs\"", include_dir, error=error)
@@ -383,7 +389,6 @@ class Project:
                     return None
 
                 modules_names_set = set()
-                normalize_path = NormalizePath
 
                 for filename in modules_names:
                     filename = proj.processString("\"Modules\"", filename, error=error)
@@ -504,6 +509,35 @@ class Project:
 
                 proj.templates = templates
                 proj.targets = targets_new
+
+        ### Symbol Map Reading ###
+
+        sym_map_path = normalize_path(os.path.join(path, "syms/main.map"))
+        if os.path.isfile(sym_map_path):
+            reader = TokenReader()
+            reader.openFile(sym_map_path)
+
+            try:
+                is_valid, syms = parse_start(reader)
+                if not is_valid:
+                    line, col = reader.indexToCoordinates(reader.file_str, reader.nextToken.srcPosAt)
+                    error("In file: %s\n"
+                          "At line %d, column %d: syntax error" % (sym_map_path, line, col))
+                    return None
+
+                try:
+                    proj.symbols = resolve_symbols(reader, syms)
+
+                except Exception as e:
+                    error("In file: %s\n"
+                          "%s" % (sym_map_path, e))
+                    return None
+
+                # else:
+                #     print(json_dumps(proj.symbols, indent=2))
+
+            finally:
+                reader.closeFile()
 
         ### Success ###
         # print("Success")

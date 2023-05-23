@@ -9,6 +9,8 @@ import os
 # Local
 from .common import NormalizePath
 from .module import Module
+from .symlang.parser import AddressConversionMap
+from .symlang.reader import TokenReader
 
 
 class Target:
@@ -28,6 +30,7 @@ class Target:
     def fromObj(obj, name, proj, is_template, error=print):
         target_field_name = "%s %r" % ("Template" if is_template else "Target", name)
         modulesBaseDir = proj.modulesBaseDir
+        normalize_path = NormalizePath
 
         ### Selected Options Sanity Check ###
         # print("%s Selected Options Sanity Check" % target_field_name)
@@ -66,19 +69,45 @@ class Target:
             target.extendsName = extends_name
             default_name = extends_name
 
-        ### Address Offsets Map Name Reading ###
-        # print("%s Address Offsets Map Name Reading" % target_field_name)
+        ### Address Conversion Map Reading ###
+        # print("%s Address Conversion Map Reading" % target_field_name)
+
+        addr_map_name = None
 
         if "AddrMap" not in obj:
-            target.addrMap = default_name
+            addr_map_name = default_name
 
         else:
-            addr_map = proj.readString(obj, "AddrMap", "%s Address Offsets Map Name" % target_field_name, 0x01020304, True, error=error)
+            addr_map = proj.readString(obj, "AddrMap", "%s Address Conversion Map Name" % target_field_name, 0x01020304, True, error=error)
             if addr_map is None:
                 return None
 
             if addr_map != 0x01020304:
-                target.addrMap = addr_map
+                addr_map_name = addr_map
+
+        if addr_map_name is not None and not is_template:
+            addr_map_path = normalize_path(os.path.join(proj.path, "maps/%s.convmap" % addr_map_name))
+            if not os.path.isfile(addr_map_path):
+                error("In %s,\n"
+                      "Address conversion map file not found: %r\n"
+                      "Path resolved to: %r" % (target_field_name, addr_map_name, addr_map_path))
+                return None
+
+            reader = TokenReader()
+            reader.openFile(addr_map_path)
+
+            try:
+                is_valid, text_addr, data_addr, statements = AddressConversionMap.start(reader)
+                if not is_valid:
+                    line, col = reader.indexToCoordinates(reader.file_str, reader.nextToken.srcPosAt)
+                    error("In file: %s\n"
+                          "At line %d, column %d: syntax error" % (addr_map_path, line, col))
+                    return None
+
+                target.addrMap = (text_addr, data_addr, statements)
+
+            finally:
+                reader.closeFile()
 
         ### Base RPX Filename Reading ###
         # print("%s Base RPX Filename Reading" % target_field_name)
@@ -106,7 +135,6 @@ class Target:
 
                 modules_names_set = set()
                 remove_modules_field_name = "%s \"Remove/Modules\"" % target_field_name
-                normalize_path = NormalizePath
 
                 for filename in modules_names:
                     filename = proj.processString(remove_modules_field_name, filename, error=error)
@@ -133,7 +161,6 @@ class Target:
 
                 modules_names_set = set()
                 add_modules_field_name = "%s \"Add/Modules\"" % target_field_name
-                normalize_path = NormalizePath
 
                 for filename in modules_names:
                     filename = proj.processString(add_modules_field_name, filename, error=error)

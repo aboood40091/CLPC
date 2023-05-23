@@ -77,8 +77,6 @@ def main():
 
     print("Default Build Options:", json_dumps(proj.defaultBuildOptions, sort_keys=True, indent=2))
 
-    print("Address Offsets Maps Extension:", proj.addrMapExt)
-
     print("Project Defines:", json_dumps(proj.defines, sort_keys=True, indent=2))
 
     if proj.modules:

@@ -13,8 +13,8 @@ from .common import NormalizePath
 from .common import WUAPPS_VERSION_MAX, WUAPPS_VERSION_MAX_STR
 from .common import WUAPPS_VERSION_MIN, WUAPPS_VERSION_MIN_STR
 from .module import Module
-from .symlang.parser import resolve as resolve_symbols
-from .symlang.parser import start as parse_start
+from .symlang.parser import resolveSymbols
+from .symlang.parser import SymbolMap
 from .symlang.reader import TokenReader
 from .target import Target
 
@@ -36,7 +36,6 @@ class Project:
         self.srcBaseDir = None
         self.includeDirs = [os.path.join(path, "include")]
         self.rpxDir = os.path.join(path, "rpxs")
-        self.addrMapExt = ".offs"
         self.modules = {}
         self.defines = {}
         self.templates = {}
@@ -202,7 +201,6 @@ class Project:
             "IncludeDirs",
             "RpxDir",
             "ExcludeDefaultBuildOptions",
-            "AddrMapFileExtension",
             "Modules",
             "Defines",
             "Targets"
@@ -369,15 +367,6 @@ class Project:
 
                     del build_options[option]
 
-        ### Address Offsets Maps Extension Reading ###
-        # print("Address Offsets Maps Extension Reading")
-
-        addr_map_ext = proj.readString(obj, "AddrMapFileExtension", "Address Offsets Maps Extension", "offs", error=error)
-        if addr_map_ext is None:
-            return None
-
-        proj.addrMapExt = '.' + addr_map_ext
-
         ### Modules List Reading ###
         # print("Modules List Reading")
 
@@ -512,13 +501,13 @@ class Project:
 
         ### Symbol Map Reading ###
 
-        sym_map_path = normalize_path(os.path.join(path, "syms/main.map"))
+        sym_map_path = normalize_path(os.path.join(path, "maps/main.map"))
         if os.path.isfile(sym_map_path):
             reader = TokenReader()
             reader.openFile(sym_map_path)
 
             try:
-                is_valid, syms = parse_start(reader)
+                is_valid, syms = SymbolMap.start(reader)
                 if not is_valid:
                     line, col = reader.indexToCoordinates(reader.file_str, reader.nextToken.srcPosAt)
                     error("In file: %s\n"
@@ -526,7 +515,7 @@ class Project:
                     return None
 
                 try:
-                    proj.symbols = resolve_symbols(reader, syms)
+                    proj.symbols = resolveSymbols(reader, syms)
 
                 except Exception as e:
                     error("In file: %s\n"

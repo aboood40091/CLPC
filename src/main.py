@@ -84,15 +84,14 @@ def main():
         for name, module in sorted(proj.modules.items(), key=lambda item: item[0]):
             printModule(name, module, 1)
 
-    if proj.templates:
-        print("Project Templates:")
-        for name, template in sorted(proj.templates.items(), key=lambda item: item[0]):
-            print("  %s" % name)
-
     if proj.targets:
         print("Project Targets:")
         for name, target in sorted(proj.targets.items(), key=lambda item: item[0]):
-            print("  %s" % name)
+            if target.isAbstract:
+                print("  %s (abstract)" % name)
+
+            else:
+                print("  %s" % name)
 
 
 if __name__ == "__main__":

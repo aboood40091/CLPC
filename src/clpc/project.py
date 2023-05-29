@@ -13,7 +13,6 @@ from .common import NormalizePath
 from .common import WUAPPS_VERSION_MAX, WUAPPS_VERSION_MAX_STR
 from .common import WUAPPS_VERSION_MIN, WUAPPS_VERSION_MIN_STR
 from .module import Module
-from .symlang.parser import resolveSymbols
 from .symlang.parser import SymbolMap
 from .symlang.reader import TokenReader
 from .target import Target
@@ -38,7 +37,6 @@ class Project:
         self.rpxDir = os.path.join(path, "rpxs")
         self.modules = {}
         self.defines = {}
-        self.templates = {}
         self.targets = {}
         self.symbols = {}
 
@@ -452,7 +450,6 @@ class Project:
 
                 is_valid_filename = IsValidFilename
 
-                templates = {}
                 targets_new = {}
 
                 for target_name, target_obj in targets.items():
@@ -460,43 +457,44 @@ class Project:
                         error("Invalid Target name: %r" % target_name)
                         return None
 
-                    if '/' in target_name:
-                        parts = target_name.split('/')
-                        if len(parts) != 2 or parts[0].strip() != "Template":
-                            error("Invalid Target name: %r" % target_name)
-                            return None
+                    if not is_valid_filename(target_name):
+                        error("Target name is invalid (cannot be used as filename): %r" % target_name)
+                        return None
 
-                        template_name = parts[1].strip()
-                        if not is_valid_filename(template_name):
-                            error("Template name is invalid as filename: %r (from definition: %r)" % (template_name, target_name))
-                            return None
-
-                        target_name = template_name
-                        is_template = True
-
-                    else:
-                        if not is_valid_filename(target_name):
-                            error("Target name is invalid as filename: %r" % target_name)
-                            return None
-
-                        is_template = False
-
-                    target = Target.fromObj(target_obj, target_name, proj, is_template, error)
+                    target = Target.fromObj(target_obj, target_name, proj, error)
                     if target is None:
                         return None
 
-                    if is_template:
-                        templates[target_name] = target
-
-                    else:
-                        targets_new[target_name] = target
+                    targets_new[target_name] = target
 
                 for target_name, target in targets_new.items():
-                    if target.extendsName is not None and target.extendsName not in templates:
-                        error("Target %r is trying to extend non-existent template %r" % (target_name, target.extendsName))
-                        return None
+                    if target.extendsName is not None:
+                        if target.extendsName not in targets_new:
+                            error("Target %r is trying to extend non-existent target %r" % (target_name, target.extendsName))
+                            return None
 
-                proj.templates = templates
+                        target.base = targets_new[target.extendsName]
+
+                cycles_resolved = []
+
+                for target_name, target in targets_new.items():
+                    bases = []
+                    current = target
+                    while current.base is not None:
+                        base = current.base
+                        if base in cycles_resolved:
+                            break
+
+                        if base in bases:
+                            error("Detected cycle while trying to resolve bases for target: %r" % target_name)
+                            return None
+
+                        bases.append(base)
+                        current = base
+
+                    cycles_resolved.append(target)
+                    cycles_resolved.extend(bases)
+
                 proj.targets = targets_new
 
         ### Symbol Map Reading ###
@@ -515,7 +513,7 @@ class Project:
                     return None
 
                 try:
-                    proj.symbols = resolveSymbols(reader, syms)
+                    proj.symbols = SymbolMap.resolve(reader, syms)
 
                 except Exception as e:
                     error("In file: %s\n"

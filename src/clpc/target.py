@@ -15,6 +15,8 @@ from .symlang.reader import TokenReader
 
 class Target:
     def __init__(self):
+        self.isAbstract = False
+
         self.addrMap = None
         self.baseRpx = None
 
@@ -25,26 +27,27 @@ class Target:
         self.add_Defines = {}
 
         self.extendsName = None
+        self.base = None
 
     @staticmethod
-    def fromObj(obj, name, proj, is_template, error=print):
-        target_field_name = "%s %r" % ("Template" if is_template else "Target", name)
+    def fromObj(obj, name, proj, error=print):
+        target_field_name = "Target %r" % name
         modulesBaseDir = proj.modulesBaseDir
         normalize_path = NormalizePath
 
         ### Selected Options Sanity Check ###
         # print("%s Selected Options Sanity Check" % target_field_name)
 
-        available_options = [
+        available_options = (
+            "Abstract",
             "AddrMap",
             "BaseRpx",
             "Remove/Modules",
             "Add/Modules",
             "Remove/Defines",
-            "Add/Defines"
-        ]
-        if not is_template:
-            available_options.append("Extends")
+            "Add/Defines",
+            "Extends"
+        )
 
         available_options_error_msg = "Unrecognized option in %s: %s" % (target_field_name, "%r")
 
@@ -59,10 +62,20 @@ class Target:
         target = Target()
         default_name = name
 
-        ### Extending Template Name Reading ###
+        ### Abstract Determiner Reader ###
+
+        if "Abstract" in obj:
+            abstract = obj["Abstract"]
+            if not isinstance(abstract, bool):
+                error("In %s, expected \"Abstract\" to be a boolean" % target_field_name)
+                return None
+
+            target.isAbstract = abstract
+
+        ### Extending Target Name Reading ###
 
         if "Extends" in obj:
-            extends_name = proj.processString("%s Extending Template Name" % target_field_name, obj["Extends"], error=error)
+            extends_name = proj.processString("%s Extending Target Name" % target_field_name, obj["Extends"], error=error)
             if extends_name is None:
                 return None
 
@@ -85,7 +98,7 @@ class Target:
             if addr_map != 0x01020304:
                 addr_map_name = addr_map
 
-        if addr_map_name is not None and not is_template:
+        if addr_map_name is not None:
             addr_map_path = normalize_path(os.path.join(proj.path, "maps/%s.convmap" % addr_map_name))
             if not os.path.isfile(addr_map_path):
                 error("In %s,\n"
@@ -104,7 +117,13 @@ class Target:
                           "At line %d, column %d: syntax error" % (addr_map_path, line, col))
                     return None
 
-                target.addrMap = (text_addr, data_addr, statements)
+                try:
+                    target.addrMap = AddressConversionMap.resolve(reader, text_addr, data_addr, statements)
+
+                except Exception as e:
+                    error("In file: %s\n"
+                          "%s" % (addr_map_path, e))
+                    return None
 
             finally:
                 reader.closeFile()
@@ -175,7 +194,7 @@ class Target:
 
                 for file_path in modules_names_set:
                     if file_path in target.remove_Modules:
-                        error("In %s, trying to add module that needs to be removed within the same template/target: %s" % (target_field_name, file_path))
+                        error("In %s, trying to add module that needs to be removed within the same target: %s" % (target_field_name, file_path))
                         return None
 
                 modules = {}

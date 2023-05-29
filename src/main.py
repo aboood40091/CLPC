@@ -2,13 +2,9 @@
 # -*- coding: utf-8 -*-
 
 
+from clpc.common import NormalizePath
 from clpc import Project
 from json import dumps as json_dumps
-import os
-
-
-def NormalizePath(path):
-    return os.path.normcase(os.path.normpath(path))
 
 
 def printModule(name, module, base_indent_level):

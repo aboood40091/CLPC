@@ -3,6 +3,7 @@
 
 
 import os
+import pathlib
 import re
 
 
@@ -31,4 +32,4 @@ def IsValidFilename(s):
 
 
 def NormalizePath(path):
-    return os.path.normcase(os.path.normpath(path))
+    return pathlib.Path(os.path.normcase(os.path.normpath(path))).resolve()

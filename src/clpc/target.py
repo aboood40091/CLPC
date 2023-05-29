@@ -60,7 +60,6 @@ class Target:
         # print("%s Target Initialization" % target_field_name)
 
         target = Target()
-        default_name = name
 
         ### Abstract Determiner Reader ###
 
@@ -80,7 +79,6 @@ class Target:
                 return None
 
             target.extendsName = extends_name
-            default_name = extends_name
 
         ### Address Conversion Map Reading ###
         # print("%s Address Conversion Map Reading" % target_field_name)
@@ -88,7 +86,7 @@ class Target:
         addr_map_name = None
 
         if "AddrMap" not in obj:
-            addr_map_name = default_name
+            addr_map_name = "@inherit" if target.extendsName is not None else "@self"
 
         else:
             addr_map = proj.readString(obj, "AddrMap", "%s Address Conversion Map Name" % target_field_name, 0x01020304, True, error=error)
@@ -99,6 +97,16 @@ class Target:
                 addr_map_name = addr_map
 
         if addr_map_name is not None:
+            if addr_map_name == "@self":
+                addr_map_name = name
+
+            elif addr_map_name == "@inherit":
+                if target.extendsName is None:
+                    error("In %s, \"AddrMap\" is set to inherit non-existing base" % target_field_name)
+                    return None
+
+                addr_map_name = target.extendsName
+
             addr_map_path = normalize_path(os.path.join(proj.path, "maps/%s.convmap" % addr_map_name))
             if not os.path.isfile(addr_map_path):
                 error("In %s,\n"
@@ -131,8 +139,10 @@ class Target:
         ### Base RPX Filename Reading ###
         # print("%s Base RPX Filename Reading" % target_field_name)
 
+        base_rpx_name = None
+
         if "BaseRpx" not in obj:
-            target.baseRpx = default_name
+            base_rpx_name = "@inherit" if target.extendsName is not None else "@self"
 
         else:
             base_rpx = proj.readString(obj, "BaseRpx", "%s Base RPX Filename" % target_field_name, 0x01020304, True, error=error)
@@ -140,7 +150,20 @@ class Target:
                 return None
 
             if base_rpx != 0x01020304:
-                target.baseRpx = base_rpx
+                base_rpx_name = base_rpx
+
+        if base_rpx_name is not None:
+            if base_rpx_name == "@self":
+                base_rpx_name = name
+
+            elif base_rpx_name == "@inherit":
+                if target.extendsName is None:
+                    error("In %s, \"BaseRpx\" is set to inherit non-existing base" % target_field_name)
+                    return None
+
+                base_rpx_name = target.extendsName
+
+            target.baseRpx = base_rpx_name
 
         ### Modules Removal List Reading ###
         # print("%s Modules Removal List Reading" % target_field_name)

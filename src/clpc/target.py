@@ -9,16 +9,22 @@ import os
 # Local
 from .common import NormalizePath
 from .module import Module
-from .symlang.parser import AddressConversionMap
-from .symlang.reader import TokenReader
 
 
 class Target:
     def __init__(self):
+        self.name = None
+
         self.isAbstract = False
 
+        self.baseNames = []
+        self.bases = []
+        self.base = None
+
+        self.addrMapName = None
         self.addrMap = None
-        self.baseRpx = None
+
+        self.baseRpxName = None
 
         self.remove_Modules = []
         self.remove_Defines = []
@@ -26,12 +32,89 @@ class Target:
         self.add_Modules = {}
         self.add_Defines = {}
 
-        self.extendsName = None
-        self.base = None
+    def __eq__(self, other):
+        if isinstance(other, Target) and (other.name is not None or self.name is not None):
+            return self.name == other.name
+
+        return super().__eq__(other)
+
+    def copy(self, other):
+        self.name           = other.name
+        self.isAbstract     = other.isAbstract
+        self.baseNames      = other.baseNames
+        self.bases          = other.bases
+        self.base           = other.base
+        self.addrMapName    = other.addrMapName
+        self.addrMap        = other.addrMap
+        self.baseRpxName    = other.baseRpxName
+        self.remove_Modules = other.remove_Modules
+        self.remove_Defines = other.remove_Defines
+        self.add_Modules    = other.add_Modules
+        self.add_Defines    = other.add_Defines
+
+    def join(self, other, target_field_name, error=print):
+        self.isAbstract = True
+
+        # We don't care about these
+        self.baseNames = None
+        self.bases = None
+        self.addrMap = None
+
+        if other.addrMapName != "@inherit":
+            self.addrMapName = other.addrMapName
+
+        if other.baseRpxName != "@inherit":
+            self.baseRpxName = other.baseRpxName
+
+        for module_name in other.remove_Modules:
+            if module_name in self.add_Modules:
+                del self.add_Modules[module_name]
+
+            else:
+                self.remove_Modules.append(module_name)
+
+        for module_name in other.add_Modules:
+            if module_name in self.add_Modules:
+                error("In %s, trying to add module from base %r that already exists in base(s): %r,\n"
+                      "%s" % (target_field_name, other.name, self.name, module_name))
+                return False
+
+            self.add_Modules.append(module_name)
+
+        for macro_name in other.remove_Defines:
+            if macro_name in self.add_Defines:
+                del self.add_Defines[macro_name]
+
+            else:
+                self.remove_Defines.append(macro_name)
+
+        for macro_name in other.add_Defines:
+            if macro_name in self.add_Defines:
+                error("In %s, trying to add macro definition from base %r that already exists in base(s): %r,\n"
+                      "%s" % (target_field_name, other.name, self.name, macro_name))
+                return False
+
+            self.add_Defines.append(macro_name)
+
+        self.name = " ".join((self.name, "|", other.name))
+        return True
 
     @staticmethod
     def fromObj(obj, name, proj, error=print):
         target_field_name = "Target %r" % name
+
+        ### Target Initialization ###
+        # print("%s Target Initialization" % target_field_name)
+
+        target = Target()
+        target.name = name
+
+        if obj is None:
+            target.addrMapName = name
+            target.baseRpxName = name
+
+            return target
+
         modulesBaseDir = proj.modulesBaseDir
         normalize_path = NormalizePath
 
@@ -56,11 +139,6 @@ class Target:
                 error(available_options_error_msg % k)
                 return None
 
-        ### Target Initialization ###
-        # print("%s Target Initialization" % target_field_name)
-
-        target = Target()
-
         ### Abstract Determiner Reader ###
 
         if "Abstract" in obj:
@@ -71,25 +149,40 @@ class Target:
 
             target.isAbstract = abstract
 
-        ### Extending Target Name Reading ###
+        ### Base Target(s) Name Reading ###
 
         if "Extends" in obj:
-            extends_name = proj.processString("%s Extending Target Name" % target_field_name, obj["Extends"], error=error)
-            if extends_name is None:
+            extends = obj["Extends"]
+            if isinstance(extends, str):
+                extends = [extends]
+
+            elif not isinstance(extends, list) or not extends:
+                error("In %s, expected \"Extends\" to be a string or list of strings" % target_field_name)
                 return None
 
-            target.extendsName = extends_name
+            extends_field_name = "%s Base Target(s) Name" % target_field_name
 
-        ### Address Conversion Map Reading ###
-        # print("%s Address Conversion Map Reading" % target_field_name)
+            base_names = []
+
+            for base_name in extends:
+                base_name = proj.processString(extends_field_name, base_name, error=error)
+                if base_name is None:
+                    return None
+
+                base_names.append(base_name)
+
+            target.baseNames = base_names
+
+        ### Address Conversion Map Filename Reading ###
+        # print("%s Address Conversion Map Filename Reading" % target_field_name)
 
         addr_map_name = None
 
         if "AddrMap" not in obj:
-            addr_map_name = "@inherit" if target.extendsName is not None else "@self"
+            addr_map_name = "@inherit" if target.baseNames else "@self"
 
         else:
-            addr_map = proj.readString(obj, "AddrMap", "%s Address Conversion Map Name" % target_field_name, 0x01020304, True, error=error)
+            addr_map = proj.readString(obj, "AddrMap", "%s Address Conversion Map Filename" % target_field_name, 0x01020304, True, error=error)
             if addr_map is None:
                 return None
 
@@ -100,41 +193,7 @@ class Target:
             if addr_map_name == "@self":
                 addr_map_name = name
 
-            elif addr_map_name == "@inherit":
-                if target.extendsName is None:
-                    error("In %s, \"AddrMap\" is set to inherit non-existing base" % target_field_name)
-                    return None
-
-                addr_map_name = target.extendsName
-
-            addr_map_path = normalize_path(os.path.join(proj.path, "maps/%s.convmap" % addr_map_name))
-            if not os.path.isfile(addr_map_path):
-                error("In %s,\n"
-                      "Address conversion map file not found: %r\n"
-                      "Path resolved to: %r" % (target_field_name, addr_map_name, addr_map_path))
-                return None
-
-            reader = TokenReader()
-            reader.openFile(addr_map_path)
-
-            try:
-                is_valid, text_addr, data_addr, statements = AddressConversionMap.start(reader)
-                if not is_valid:
-                    line, col = reader.indexToCoordinates(reader.file_str, reader.nextToken.srcPosAt)
-                    error("In file: %s\n"
-                          "At line %d, column %d: syntax error" % (addr_map_path, line, col))
-                    return None
-
-                try:
-                    target.addrMap = AddressConversionMap.resolve(reader, text_addr, data_addr, statements)
-
-                except Exception as e:
-                    error("In file: %s\n"
-                          "%s" % (addr_map_path, e))
-                    return None
-
-            finally:
-                reader.closeFile()
+            target.addrMapName = addr_map_name
 
         ### Base RPX Filename Reading ###
         # print("%s Base RPX Filename Reading" % target_field_name)
@@ -142,7 +201,7 @@ class Target:
         base_rpx_name = None
 
         if "BaseRpx" not in obj:
-            base_rpx_name = "@inherit" if target.extendsName is not None else "@self"
+            base_rpx_name = "@inherit" if target.baseNames else "@self"
 
         else:
             base_rpx = proj.readString(obj, "BaseRpx", "%s Base RPX Filename" % target_field_name, 0x01020304, True, error=error)
@@ -156,14 +215,7 @@ class Target:
             if base_rpx_name == "@self":
                 base_rpx_name = name
 
-            elif base_rpx_name == "@inherit":
-                if target.extendsName is None:
-                    error("In %s, \"BaseRpx\" is set to inherit non-existing base" % target_field_name)
-                    return None
-
-                base_rpx_name = target.extendsName
-
-            target.baseRpx = base_rpx_name
+            target.baseRpxName = base_rpx_name
 
         ### Modules Removal List Reading ###
         # print("%s Modules Removal List Reading" % target_field_name)
@@ -224,6 +276,7 @@ class Target:
 
                 for file_path in modules_names_set:
                     if file_path in proj.fileCache:
+                        # print("Already cached: %s" % file_path)
                         module = proj.fileCache[file_path]
 
                     else:

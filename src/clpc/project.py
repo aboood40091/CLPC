@@ -13,6 +13,7 @@ from .common import NormalizePath
 from .common import WUAPPS_VERSION_MAX, WUAPPS_VERSION_MAX_STR
 from .common import WUAPPS_VERSION_MIN, WUAPPS_VERSION_MIN_STR
 from .module import Module
+from .symlang.parser import AddressConversionMap
 from .symlang.parser import SymbolMap
 from .symlang.reader import TokenReader
 from .target import Target
@@ -392,6 +393,7 @@ class Project:
 
                 for file_path in modules_names_set:
                     if file_path in proj.fileCache:
+                        # print("Already cached: %s" % file_path)
                         module = proj.fileCache[file_path]
 
                     else:
@@ -467,19 +469,46 @@ class Project:
 
                     targets_new[target_name] = target
 
+                ### Target Bases List Creation ###
+
                 for target_name, target in targets_new.items():
-                    if target.extendsName is not None:
-                        if target.extendsName not in targets_new:
-                            error("Target %r is trying to extend non-existent target %r" % (target_name, target.extendsName))
+                    bases = target.bases
+                    # assert not bases
+
+                    for base_name in target.baseNames:
+                        if base_name not in targets_new:
+                            error("Target %r is trying to extend non-existent target %r" % (target_name, base_name))
                             return None
 
-                        target.base = targets_new[target.extendsName]
+                        bases.append(targets_new[base_name])
+
+                ### Target Bases List Join ###
+
+                for target_name, target in targets_new.items():
+                    bases = target.bases
+                    if bases:
+                        base = Target()
+                        base.copy(bases[0])
+
+                        target_field_name = "Target %r" % target_name
+
+                        for other_base in bases[1:]:
+                            if not base.join(other_base, target_field_name, error):
+                                return None
+
+                        # print("%s has base: %r" % (target_field_name, base.name))
+                        target.base = base
+
+                    # else:
+                    #     assert not target.base
+
+                ### Target Extension Cycle Detection ###
 
                 cycles_resolved = []
 
                 for target_name, target in targets_new.items():
-                    bases = []
                     current = target
+                    bases = [current]
                     while current.base is not None:
                         base = current.base
                         if base in cycles_resolved:
@@ -492,15 +521,115 @@ class Project:
                         bases.append(base)
                         current = base
 
-                    cycles_resolved.append(target)
                     cycles_resolved.extend(bases)
+
+                ## Target Address Conversion Map Reading ###
+
+                for target_name, target in targets_new.items():
+                    if target.isAbstract:
+                        continue
+
+                    addr_map_name = target.addrMapName
+                    if addr_map_name == "@inherit":
+                        target_field_name = "Target %r" % target_name
+
+                        prev_base = target
+                        base = target.base
+
+                        while base is not None:
+                            if base.addrMapName != "@inherit":
+                                break
+
+                            prev_base = base
+                            base = base.base
+
+                        else:
+                            if target == prev_base:
+                                error("In %s, \"AddrMap\" is set to inherit non-existing base" % target_field_name)
+                            else:
+                                error("While processing %s, in base(s) %r, \"AddrMap\" is set to inherit non-existing base" % (target_field_name, prev_base.name))
+
+                            return None
+
+                        addr_map_name = base.addrMapName
+                        target.addrMapName = addr_map_name
+
+                    if addr_map_name is not None:
+                        addr_map_path = normalize_path(os.path.join(proj.path, "maps/%s.convmap" % addr_map_name))
+                        if addr_map_path in proj.fileCache:
+                            # print("Already cached: %s" % addr_map_path)
+                            target.addrMap = proj.fileCache[addr_map_path]
+
+                        elif os.path.isfile(addr_map_path):
+                            reader = TokenReader()
+                            reader.openFile(addr_map_path)
+
+                            try:
+                                is_valid, text_addr, data_addr, statements = AddressConversionMap.start(reader)
+                                if not is_valid:
+                                    line, col = reader.indexToCoordinates(reader.file_str, reader.nextToken.srcPosAt)
+                                    error("In file: %s\n"
+                                          "At line %d, column %d: syntax error" % (addr_map_path, line, col))
+                                    return None
+
+                                try:
+                                    target.addrMap = AddressConversionMap.resolve(reader, text_addr, data_addr, statements)
+
+                                except Exception as e:
+                                    error("In file: %s\n"
+                                          "%s" % (addr_map_path, e))
+                                    return None
+
+                                else:
+                                    proj.fileCache[addr_map_path] = target.addrMap
+
+                            finally:
+                                reader.closeFile()
+
+                        else:
+                            error("In %s,\n"
+                                  "Address conversion map file not found: %r\n"
+                                  "Path resolved to: %r" % (target_field_name, addr_map_name, addr_map_path))
+                            return None
+
+                ### Target Base RPX Filename Resolution ###
+
+                for target_name, target in targets_new.items():
+                    if target.baseRpxName == "@inherit":
+                        target_field_name = "Target %r" % target_name
+
+                        prev_base = target
+                        base = target.base
+
+                        while base is not None:
+                            if base.baseRpxName != "@inherit":
+                                break
+
+                            prev_base = base
+                            base = base.base
+
+                        else:
+                            if target == prev_base:
+                                error("In %s, \"BaseRpx\" is set to inherit non-existing base" % target_field_name)
+                            else:
+                                error("While processing %s, in base %r, \"BaseRpx\" is set to inherit non-existing base" % (target_field_name, prev_base.name))
+
+                            return None
+
+                        target.baseRpxName = base.baseRpxName
+
+                ### Targets List Reading Success ###
 
                 proj.targets = targets_new
 
         ### Symbol Map Reading ###
 
         sym_map_path = normalize_path(os.path.join(path, "maps/main.map"))
-        if os.path.isfile(sym_map_path):
+        if sym_map_path in proj.fileCache:
+            # print("Already cached: %s" % sym_map_path)
+            proj.symbols = proj.fileCache[sym_map_path]
+
+        elif os.path.isfile(sym_map_path):
             reader = TokenReader()
             reader.openFile(sym_map_path)
 
@@ -520,8 +649,9 @@ class Project:
                           "%s" % (sym_map_path, e))
                     return None
 
-                # else:
-                #     print(json_dumps(proj.symbols, indent=2))
+                else:
+                    proj.fileCache[sym_map_path] = proj.symbols
+                    # print(json_dumps(proj.symbols, indent=2))
 
             finally:
                 reader.closeFile()

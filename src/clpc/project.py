@@ -339,7 +339,10 @@ class Project:
             return None
 
         if rpxDir != 0x01020304:
-            proj.rpxDir = rpxDir
+            if not os.path.isabs(rpxDir):
+                rpxDir = os.path.join(path, rpxDir)
+
+            proj.rpxDir = normalize_path(rpxDir)
 
         ### Excluded Default Build Options Reading ###
         # print("Excluded Default Build Options Reading")

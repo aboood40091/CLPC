@@ -25,17 +25,20 @@ import yaml
 
 class Project:
     def __init__(self, path):
+        normalize_path = NormalizePath
+
         if not os.path.isabs(path):
             path = os.path.abspath(path)
 
+        path = normalize_path(path)
         self.path = path
 
         self.name = None
         self.variables = []
         self.modulesBaseDir = path
         self.srcBaseDir = None
-        self.includeDirs = [os.path.join(path, "include")]
-        self.rpxDir = os.path.join(path, "rpxs")
+        self.includeDirs = [normalize_path(os.path.join(path, "include"))]
+        self.rpxDir = normalize_path(os.path.join(path, "rpxs"))
         self.modules = {}
         self.defines = {}
         self.targets = {}
@@ -190,6 +193,8 @@ class Project:
         if not os.path.isabs(path):
             path = os.path.abspath(path)
 
+        path = normalize_path(path)
+
         ### Selected Options Sanity Check ###
         # print("Selected Options Sanity Check")
 
@@ -287,7 +292,7 @@ class Project:
         elif not os.path.isabs(modulesBaseDir):
             modulesBaseDir = os.path.join(path, modulesBaseDir)
 
-        proj.modulesBaseDir = modulesBaseDir
+        proj.modulesBaseDir = normalize_path(modulesBaseDir)
 
         ### Sources Base Directory Reading ###
         # print("Sources Base Directory Reading")
@@ -300,7 +305,7 @@ class Project:
             if not os.path.isabs(srcBaseDir):
                 srcBaseDir = os.path.join(path, srcBaseDir)
 
-            proj.srcBaseDir = srcBaseDir
+            proj.srcBaseDir = normalize_path(srcBaseDir)
 
         ### Include Directories List Reading ###
         # print("Include Directories List Reading")

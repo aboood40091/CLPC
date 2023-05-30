@@ -73,13 +73,13 @@ class Target:
             else:
                 self.remove_Modules.append(module_name)
 
-        for module_name in other.add_Modules:
+        for module_name, module in other.add_Modules.items():
             if module_name in self.add_Modules:
                 error("In %s, trying to add module from base %r that already exists in base(s): %r,\n"
                       "%s" % (target_field_name, other.name, self.name, module_name))
                 return False
 
-            self.add_Modules.append(module_name)
+            self.add_Modules[module_name] = module
 
         for macro_name in other.remove_Defines:
             if macro_name in self.add_Defines:
@@ -88,13 +88,13 @@ class Target:
             else:
                 self.remove_Defines.append(macro_name)
 
-        for macro_name in other.add_Defines:
+        for macro_name, value in other.add_Defines.items():
             if macro_name in self.add_Defines:
                 error("In %s, trying to add macro definition from base %r that already exists in base(s): %r,\n"
                       "%s" % (target_field_name, other.name, self.name, macro_name))
                 return False
 
-            self.add_Defines.append(macro_name)
+            self.add_Defines[macro_name] = value
 
         self.name = " ".join((self.name, "|", other.name))
         return True

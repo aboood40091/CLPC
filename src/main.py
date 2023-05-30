@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 
-from clpc.common import NormalizePath
 from clpc import Project
 from json import dumps as json_dumps
 
@@ -53,16 +52,16 @@ def main():
 
     print()
     print("Project Name:", repr(proj.name))
-    print("Project Path:", NormalizePath(proj.path))
+    print("Project Path:", proj.path)
 
     if proj.variables:
         print("Project Variables:")
         for item in proj.variables:
             print("  %s: %r" % item)
 
-    print("Modules Base Directory:", NormalizePath(proj.modulesBaseDir))
+    print("Modules Base Directory:", proj.modulesBaseDir)
     if proj.srcBaseDir:
-        print("Sources Base Directory:", NormalizePath(proj.srcBaseDir))
+        print("Sources Base Directory:", proj.srcBaseDir)
 
     if proj.includeDirs:
         print("Include Directories:")

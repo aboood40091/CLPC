@@ -26,7 +26,7 @@ class Module:
         if not os.path.isabs(path):
             path = os.path.abspath(path)
 
-        self.path = path
+        self.path = NormalizePath(path)
 
         self.files = ([], [], [])
         self.hooks = []
@@ -126,6 +126,8 @@ class Module:
         path, name = os.path.split(file_path)
         if not os.path.isabs(path):
             path = os.path.abspath(path)
+
+        path = NormalizePath(path)
 
         name = os.path.splitext(name)[0]
         module_field_name = "Module %r" % name

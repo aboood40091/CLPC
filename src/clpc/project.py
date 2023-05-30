@@ -57,6 +57,8 @@ class Project:
             "-Onounroll":               None
         }
 
+        self.buildOptions = []
+
         self.fileCache = {}
 
     def processVariables(self, s, error=print):
@@ -655,6 +657,29 @@ class Project:
 
             finally:
                 reader.closeFile()
+
+        ### Symbol Map Reading ###
+
+        buildoptions_path = normalize_path(os.path.join(path, "buildoptions.txt"))
+        if buildoptions_path in proj.fileCache:
+            # print("Already cached: %s" % buildoptions_path)
+            proj.buildOptions = proj.fileCache[buildoptions_path]
+
+        elif os.path.isfile(buildoptions_path):
+            buildOptions = []
+
+            with open(buildoptions_path, encoding="utf8") as inf:
+                for line in inf:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    buildOptions.append('\t' + line)
+
+            proj.buildOptions = tuple(buildOptions)
+            proj.fileCache[buildoptions_path] = proj.buildOptions
+
+            # print('\n'.join(buildOptions))
 
         ### Success ###
         # print("Success")

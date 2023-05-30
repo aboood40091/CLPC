@@ -658,7 +658,7 @@ class Project:
             finally:
                 reader.closeFile()
 
-        ### Symbol Map Reading ###
+        ### Build Options Reading ###
 
         buildoptions_path = normalize_path(os.path.join(path, "buildoptions.txt"))
         if buildoptions_path in proj.fileCache:

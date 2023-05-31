@@ -231,6 +231,11 @@ class AddressConversionMap:
                 line, col = reader.indexToCoordinates(reader.file_str, a.srcPosAt)
                 raise TypeError("Unrecognized token at line %d, column %d: %r" % (line, col, a.value))
 
+        base_platform = platforms[platform_type_type.Base]
+        for platform, platform_type in (platform_type_type.Emulator, AddressConvertEmulator), (platform_type_type.CafeLoader, AddressConvertCafeLoader):
+            if platforms[platform] is None:
+                platforms[platform] = platform_type(base_platform)
+
         return text_addr_resolved, data_addr_resolved, platforms
 
     @classmethod

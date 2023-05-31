@@ -17,7 +17,8 @@ class AddressConvert:
         self.ranges = {}
 
     def addressOutOfRange(self, address):
-        raise IndexError("Address[0x%08X] out of range" % address)
+        # raise IndexError("Address[0x%08X] out of range" % address)
+        pass
 
     def resolve(self, address):
         for range_, offset in self.ranges.items():

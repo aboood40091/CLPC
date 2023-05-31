@@ -40,7 +40,7 @@ class Project:
         self.includeDirs = [normalize_path(os.path.join(path, "include"))]
         self.rpxDir = normalize_path(os.path.join(path, "rpxs"))
         self.modules = {}
-        self.defines = {}
+        self.buildOptions = []
         self.targets = {}
         self.symbols = {}
 
@@ -59,8 +59,6 @@ class Project:
             "-Ospeed":                  None,
             "-Onounroll":               None
         }
-
-        self.buildOptions = []
 
         self.fileCache = {}
 
@@ -208,7 +206,7 @@ class Project:
             "RpxDir",
             "ExcludeDefaultBuildOptions",
             "Modules",
-            "Defines",
+            "BuildOptions",
             "Targets"
         )
 
@@ -317,7 +315,7 @@ class Project:
                     error("Expected \"IncludeDirs\" to be a list of strings")
                     return None
 
-                include_dirs_set = set()
+                include_dirs_set = []
 
                 for include_dir in include_dirs:
                     include_dir = proj.processString("\"IncludeDirs\"", include_dir, error=error)
@@ -327,9 +325,11 @@ class Project:
                     if not os.path.isabs(include_dir):
                         include_dir = os.path.join(path, include_dir)
 
-                    include_dirs_set.add(normalize_path(include_dir))
+                    include_dir = normalize_path(include_dir)
+                    if include_dir not in include_dirs_set:
+                        include_dirs_set.append(include_dir)
 
-                proj.includeDirs = tuple(include_dirs_set)
+                proj.includeDirs = include_dirs_set
 
         ### RPX Files Directory Reading ###
         # print("RPX Files Directory Reading")
@@ -358,14 +358,15 @@ class Project:
                     error("Expected \"ExcludeDefaultBuildOptions\" to be a list of strings")
                     return None
 
-                exclude_set = set()
+                exclude_set = []
 
                 for option in exclude:
                     option = proj.processString("\"ExcludeDefaultBuildOptions\"", option, error=error)
                     if option is None:
                         return None
 
-                    exclude_set.add(option)
+                    if option not in exclude_set:
+                        exclude_set.append(option)
 
                 build_options = proj.defaultBuildOptions
 
@@ -386,7 +387,7 @@ class Project:
                     error("Expected \"Modules\" to be a list of strings")
                     return None
 
-                modules_names_set = set()
+                modules_names_set = []
 
                 for filename in modules_names:
                     filename = proj.processString("\"Modules\"", filename, error=error)
@@ -397,7 +398,9 @@ class Project:
                     if not os.path.isabs(file_path):
                         file_path = os.path.join(modulesBaseDir, file_path)
 
-                    modules_names_set.add(normalize_path(file_path))
+                    file_path = normalize_path(file_path)
+                    if file_path not in modules_names_set:
+                        modules_names_set.append(file_path)
 
                 modules = {}
 
@@ -417,35 +420,35 @@ class Project:
 
                 proj.modules = modules
 
-        ### Defines List Reading ###
-        # print("Defines List Reading")
+        ### Build Options List Reading ###
+        # print("Build Options List Reading")
 
-        if "Defines" in obj:
-            defines = obj["Defines"]
-            if defines is not None:
-                if not isinstance(defines, dict):
-                    error("Expected \"Defines\" to be a key-value mapping")
+        if "BuildOptions" in obj:
+            build_options = obj["BuildOptions"]
+            if build_options is not None:
+                if not isinstance(build_options, list):
+                    error("Expected \"BuildOptions\" to be a list of strings")
                     return None
 
-                is_str = lambda s: isinstance(s, str)
-                is_non_null_str = lambda s: s and is_str(s)
-                is_valid_key = lambda k: is_non_null_str(k) and k.isidentifier()
+                new_build_options = []
 
-                new_defines = {}
-
-                for k, v in defines.items():
-                    if not is_valid_key(k):
-                        error("Invalid key in \"Defines\": %r" % k)
+                for option in build_options:
+                    option = proj.processString("\"BuildOptions\"", option, error=error)
+                    if option is None:
                         return None
 
-                    if v is not None:
-                        v = proj.processString("\"Defines\" for key %r" % k, v, error=error)
-                        if v is None:
-                            return None
+                    option = option.strip()
+                    if not option:
+                        error("In \"BuildOptions\", option is empty string")
+                        return None
 
-                    new_defines[k] = v
+                    if option in new_build_options:
+                        error("In \"BuildOptions\", option has multiple occurrences: %r" % option)
+                        return None
 
-                proj.defines = new_defines
+                    new_build_options.append('\t' + option)
+
+                proj.buildOptions = new_build_options
 
         ### Targets List Reading ###
         # print("Targets List Reading")
@@ -665,29 +668,6 @@ class Project:
 
             finally:
                 reader.closeFile()
-
-        ### Build Options Reading ###
-
-        buildoptions_path = normalize_path(os.path.join(path, "buildoptions.txt"))
-        if buildoptions_path in proj.fileCache:
-            # print("Already cached: %s" % buildoptions_path)
-            proj.buildOptions = proj.fileCache[buildoptions_path]
-
-        elif os.path.isfile(buildoptions_path):
-            buildOptions = []
-
-            with open(buildoptions_path, encoding="utf8") as inf:
-                for line in inf:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    buildOptions.append('\t' + line)
-
-            proj.buildOptions = tuple(buildOptions)
-            proj.fileCache[buildoptions_path] = proj.buildOptions
-
-            # print('\n'.join(buildOptions))
 
         ### Success ###
         # print("Success")

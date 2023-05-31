@@ -51,7 +51,7 @@ class Module:
         field_name_full = "%s in %s" % (field_name, module_field_name)
         srcBaseDir = proj.srcBaseDir if proj.srcBaseDir is not None else self.path
 
-        files_set = set()
+        files_set = []
         normalize_path = NormalizePath
         join_path = os.path.join
         is_file = os.path.isfile
@@ -79,7 +79,9 @@ class Module:
                 scan_path = join_path(dir_path, '*' + filename)
                 scan_files = (scan_file_path for scan_file_path in i_glob(scan_path, recursive=True) if is_file(scan_file_path))
                 for scan_file_path in scan_files:
-                    files_set.add(normalize_path(scan_file_path))
+                    scan_file_path = normalize_path(scan_file_path)
+                    if scan_file_path not in files_set:
+                        files_set.append(scan_file_path)
 
             elif filename.startswith("**."):
                 if len(filename) == 3 or not is_valid_filename(filename[2:]):
@@ -89,7 +91,9 @@ class Module:
                 scan_path = join_path(dir_path, "**", filename)
                 scan_files = (scan_file_path for scan_file_path in i_glob(scan_path, recursive=True) if is_file(scan_file_path))
                 for scan_file_path in scan_files:
-                    files_set.add(normalize_path(scan_file_path))
+                    scan_file_path = normalize_path(scan_file_path)
+                    if scan_file_path not in files_set:
+                        files_set.append(scan_file_path)
 
             else:
                 if not is_file(file_path):
@@ -98,7 +102,8 @@ class Module:
                           "Path resolved to: %r" % (field_name_full, base_file_path, file_path))
                     return False
 
-                files_set.add(file_path)
+                if file_path not in files_set:
+                    files_set.append(file_path)
 
         files_new.extend(files_set)
 

@@ -27,10 +27,10 @@ class Target:
         self.baseRpxName = None
 
         self.remove_Modules = []
-        self.remove_Defines = []
+        self.remove_BuildOptions = []
 
         self.add_Modules = {}
-        self.add_Defines = {}
+        self.add_BuildOptions = []
 
     def __eq__(self, other):
         if isinstance(other, Target) and (other.name is not None or self.name is not None):
@@ -39,18 +39,18 @@ class Target:
         return super().__eq__(other)
 
     def copy(self, other):
-        self.name           = other.name
-        self.isAbstract     = other.isAbstract
-        self.baseNames      = other.baseNames
-        self.bases          = other.bases
-        self.base           = other.base
-        self.addrMapName    = other.addrMapName
-        self.addrMap        = other.addrMap
-        self.baseRpxName    = other.baseRpxName
-        self.remove_Modules = other.remove_Modules
-        self.remove_Defines = other.remove_Defines
-        self.add_Modules    = other.add_Modules
-        self.add_Defines    = other.add_Defines
+        self.name                   = other.name
+        self.isAbstract             = other.isAbstract
+        self.baseNames              = other.baseNames
+        self.bases                  = other.bases
+        self.base                   = other.base
+        self.addrMapName            = other.addrMapName
+        self.addrMap                = other.addrMap
+        self.baseRpxName            = other.baseRpxName
+        self.remove_Modules         = other.remove_Modules
+        self.remove_BuildOptions    = other.remove_BuildOptions
+        self.add_Modules            = other.add_Modules
+        self.add_BuildOptions       = other.add_BuildOptions
 
     def join(self, other, target_field_name, error=print):
         self.isAbstract = True
@@ -81,20 +81,20 @@ class Target:
 
             self.add_Modules[module_name] = module
 
-        for macro_name in other.remove_Defines:
-            if macro_name in self.add_Defines:
-                del self.add_Defines[macro_name]
+        for option in other.remove_BuildOptions:
+            if option in self.add_BuildOptions:
+                self.add_BuildOptions.remove(option)
 
             else:
-                self.remove_Defines.append(macro_name)
+                self.remove_BuildOptions.append(option)
 
-        for macro_name, value in other.add_Defines.items():
-            if macro_name in self.add_Defines:
-                error("In %s, trying to add macro definition from base %r that already exists in base(s): %r,\n"
-                      "%s" % (target_field_name, other.name, self.name, macro_name))
+        for option in other.add_BuildOptions:
+            if option in self.add_BuildOptions:
+                error("In %s, trying to add build option from base %r that already exists in base(s): %r,\n"
+                      "%s" % (target_field_name, other.name, self.name, option))
                 return False
 
-            self.add_Defines[macro_name] = value
+            self.add_BuildOptions.append(option)
 
         self.name = " ".join((self.name, "|", other.name))
         return True
@@ -127,8 +127,8 @@ class Target:
             "BaseRpx",
             "Remove/Modules",
             "Add/Modules",
-            "Remove/Defines",
-            "Add/Defines",
+            "Remove/BuildOptions",
+            "Add/BuildOptions",
             "Extends"
         )
 
@@ -227,7 +227,7 @@ class Target:
                     error("In %s, expected \"Remove/Modules\" to be a list of strings" % target_field_name)
                     return None
 
-                modules_names_set = set()
+                modules_names_set = []
                 remove_modules_field_name = "%s \"Remove/Modules\"" % target_field_name
 
                 for filename in modules_names:
@@ -239,9 +239,11 @@ class Target:
                     if not os.path.isabs(file_path):
                         file_path = os.path.join(modulesBaseDir, file_path)
 
-                    modules_names_set.add(normalize_path(file_path))
+                    file_path = normalize_path(file_path)
+                    if file_path not in modules_names_set:
+                        modules_names_set.append(file_path)
 
-                target.remove_Modules = tuple(modules_names_set)
+                target.remove_Modules = modules_names_set
 
         ### Modules Addition List Reading ###
         # print("%s Modules Addition List Reading" % target_field_name)
@@ -253,7 +255,7 @@ class Target:
                     error("In %s, expected \"Add/Modules\" to be a list of strings" % target_field_name)
                     return None
 
-                modules_names_set = set()
+                modules_names_set = []
                 add_modules_field_name = "%s \"Add/Modules\"" % target_field_name
 
                 for filename in modules_names:
@@ -265,7 +267,9 @@ class Target:
                     if not os.path.isabs(file_path):
                         file_path = os.path.join(modulesBaseDir, file_path)
 
-                    modules_names_set.add(normalize_path(file_path))
+                    file_path = normalize_path(file_path)
+                    if file_path not in modules_names_set:
+                        modules_names_set.append(file_path)
 
                 for file_path in modules_names_set:
                     if file_path in target.remove_Modules:
@@ -290,63 +294,67 @@ class Target:
 
                 target.add_Modules = modules
 
-        ### Defines Removal List Reading ###
-        # print("%s Defines Removal List Reading" % target_field_name)
+        ### Build Options Removal List Reading ###
+        # print("%s Build Options Removal List Reading" % target_field_name)
 
-        if "Remove/Defines" in obj:
-            defines = obj["Remove/Defines"]
-            if defines is not None:
-                if not isinstance(defines, list):
-                    error("In %s, expected \"Remove/Defines\" to be a list of strings" % target_field_name)
+        if "Remove/BuildOptions" in obj:
+            build_options = obj["Remove/BuildOptions"]
+            if build_options is not None:
+                if not isinstance(build_options, list):
+                    error("In %s, expected \"Remove/BuildOptions\" to be a list of strings" % target_field_name)
                     return None
 
-                is_str = lambda s: isinstance(s, str)
-                is_non_null_str = lambda s: s and is_str(s)
-                is_valid_key = lambda k: is_non_null_str(k) and k.isidentifier()
+                new_build_options = []
+                remove_build_options_field_name = "%s \"Remove/BuildOptions\"" % target_field_name
 
-                defines_set = set()
-                remove_key_error_msg = "In %s, invalid key in \"Remove/Defines\": %s" % (target_field_name, "%r")
-
-                for k in defines:
-                    if not is_valid_key(k):
-                        error(remove_key_error_msg % k)
+                for option in build_options:
+                    option = proj.processString(remove_build_options_field_name, option, error=error)
+                    if option is None:
                         return None
 
-                    defines_set.add(k)
+                    option = option.strip()
+                    if not option:
+                        error("In %s, option is empty string" % remove_build_options_field_name)
+                        return None
 
-                target.remove_Defines = tuple(defines_set)
+                    if option in new_build_options:
+                        error("In %s, option has multiple occurrences: %r" % (remove_build_options_field_name, option))
+                        return None
 
-        ### Defines Addition List Reading ###
-        # print("%s Defines Addition List Reading" % target_field_name)
+                    new_build_options.append('\t' + option)
 
-        if "Add/Defines" in obj:
-            defines = obj["Add/Defines"]
-            if defines is not None:
-                if not isinstance(defines, dict):
-                    error("In %s, expected \"Add/Defines\" to be a key-value mapping" % target_field_name)
+                target.remove_BuildOptions = new_build_options
+
+        ### Build Options Addition List Reading ###
+        # print("%s Build Options Addition List Reading" % target_field_name)
+
+        if "Add/BuildOptions" in obj:
+            build_options = obj["Add/BuildOptions"]
+            if build_options is not None:
+                if not isinstance(build_options, list):
+                    error("In %s, expected \"Add/BuildOptions\" to be a list of strings" % target_field_name)
                     return None
 
-                is_str = lambda s: isinstance(s, str)
-                is_non_null_str = lambda s: s and is_str(s)
-                is_valid_key = lambda k: is_non_null_str(k) and k.isidentifier()
+                new_build_options = []
+                add_build_options_field_name = "%s \"Add/BuildOptions\"" % target_field_name
 
-                new_defines = {}
-                add_key_error_msg = "In %s, invalid key in \"Add/Defines\": %s" % (target_field_name, "%r")
-                add_value_field_name = "\"Add/Defines\" for key %s in %s" % ("%r", target_field_name)
-
-                for k, v in defines.items():
-                    if not is_valid_key(k):
-                        error(add_key_error_msg % k)
+                for option in build_options:
+                    option = proj.processString(add_build_options_field_name, option, error=error)
+                    if option is None:
                         return None
 
-                    if v is not None:
-                        v = proj.processString(add_value_field_name % k, v, error=error)
-                        if v is None:
-                            return None
+                    option = option.strip()
+                    if not option:
+                        error("In %s, option is empty string" % add_build_options_field_name)
+                        return None
 
-                    new_defines[k] = v
+                    if option in new_build_options:
+                        error("In %s, option has multiple occurrences: %r" % (add_build_options_field_name, option))
+                        return None
 
-                target.add_Defines = new_defines
+                    new_build_options.append('\t' + option)
+
+                target.add_BuildOptions = new_build_options
 
         ### Success ###
         # print("%s Success" % target_field_name)

@@ -65,23 +65,26 @@ def main():
 
     if proj.includeDirs:
         print("Include Directories:")
-        for item in sorted(proj.includeDirs):
+        for item in proj.includeDirs:
             print("  %s" % item)
 
     print("RPX Files Directory:", proj.rpxDir)
 
-    print("Default Build Options:", json_dumps(proj.defaultBuildOptions, sort_keys=True, indent=2))
+    print("Default Build Options:", json_dumps(proj.defaultBuildOptions, indent=2))
 
-    print("Project Defines:", json_dumps(proj.defines, sort_keys=True, indent=2))
+    if proj.buildOptions:
+        print("Project Build Options:")
+        for option in proj.buildOptions:
+            print(option)
 
     if proj.modules:
         print("Project Modules:")
-        for name, module in sorted(proj.modules.items(), key=lambda item: item[0]):
+        for name, module in proj.modules.items():
             printModule(name, module, 1)
 
     if proj.targets:
         print("Project Targets:")
-        for name, target in sorted(proj.targets.items(), key=lambda item: item[0]):
+        for name, target in proj.targets.items():
             if target.isAbstract:
                 print("  %s (abstract)" % name)
 

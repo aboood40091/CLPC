@@ -281,7 +281,17 @@ class PatchHook(BasicHook):
             if data is None:
                 return None
 
-            hook.data = ''.join(data.split())
+            data_str = ''.join(data.split())
+
+            hex_digits = "0123456789ABCDEFabcdef"
+            is_hex_digit = lambda c: c in hex_digits
+            is_hex_str = lambda s: s and len(s) % 2 == 0 and all(is_hex_digit(c) for c in s)
+
+            if not is_hex_str(data_str):
+                error("In %s, expected \"data\" to be a valid hex string of even length, received: %r" % (hook_field_name, data))
+                return None
+
+            hook.data = data_str
 
         else:
             if type_ & patch_type_type.Array:

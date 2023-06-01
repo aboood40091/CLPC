@@ -294,6 +294,27 @@ class PatchHook(BasicHook):
             hook.data = data_str
 
         else:
+            alignment = {
+                patch_type_type.U8:         1,
+                patch_type_type.U16:        2,
+                patch_type_type.U32:        4,
+                patch_type_type.U64:        8,
+                patch_type_type.S8:         1,
+                patch_type_type.S16:        2,
+                patch_type_type.S32:        4,
+                patch_type_type.S64:        8,
+                patch_type_type.F32:        4,
+                patch_type_type.F64:        8,
+                patch_type_type.Char:       1,
+                patch_type_type.String:     4,
+                patch_type_type.WChar:      2,
+                patch_type_type.WString:    4
+            }[type_no_array]
+
+            if hook.address & (alignment - 1) != 0:
+                error("In %s, expected \"addr\" [0x%08X] to be aligned by %d" % (hook_field_name, hook.address, alignment))
+                return None
+
             if type_ & patch_type_type.Array:
                 data = obj["data"]
                 if not isinstance(data, list) or not data:

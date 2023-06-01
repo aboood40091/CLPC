@@ -542,7 +542,7 @@ class BranchHook(BasicHook):
 
         ### Hook Initialization ###
 
-        hook = NOPHook()
+        hook = BranchHook()
 
         ### Read Base Options ###
 
@@ -599,7 +599,7 @@ class FuncPtrHook(BasicHook):
 
         ### Hook Initialization ###
 
-        hook = NOPHook()
+        hook = FuncPtrHook()
 
         ### Read Base Options ###
 

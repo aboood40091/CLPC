@@ -76,6 +76,17 @@ class PatchHook(BasicHook):
 
             raise ValueError("Invalid encoding string %r" % string)
 
+        def asEncodingStr(self):
+            self_type = PatchHook.Encoding
+
+            if self == self_type.UTF_8:
+                return "utf-8"
+
+            if self == self_type.UCS_2:
+                return "utf-16be"
+
+            return "shiftjis"
+
     class Type(IntFlag):
         Raw     = 0x0000
 
@@ -116,6 +127,23 @@ class PatchHook(BasicHook):
                 return conv[type_no_array]
 
             return tuple()
+
+        def defaultEncoding(self):
+            self_type = PatchHook.Type
+            encd_type = PatchHook.Encoding
+
+            conv = {
+                self_type.String:   encd_type.Shift_JIS,
+
+                self_type.WChar:    encd_type.Shift_JIS,
+                self_type.WString:  encd_type.Shift_JIS
+            }
+
+            type_no_array = self & ~self_type.Array
+            if type_no_array in conv:
+                return conv[type_no_array]
+
+            return None
 
         @staticmethod
         def fromString(string):
@@ -315,7 +343,10 @@ class PatchHook(BasicHook):
         if encoding_s is None:
             return None
 
-        if encoding_s != 0x01020304:
+        if encoding_s == 0x01020304:
+            encoding = type_.defaultEncoding()
+
+        else:
             try:
                 encoding = PatchHook.Encoding.fromString(encoding_s)
             except ValueError as e:
@@ -326,7 +357,37 @@ class PatchHook(BasicHook):
                 error("%s Unexpected Encoding: %r" % (hook_field_name, encoding_s))
                 return None
 
-            hook.encoding = encoding
+        hook.encoding = encoding
+
+        ### Encode Strings ###
+
+        if encoding is not None:
+            encoding_str = encoding.asEncodingStr()
+
+            try:
+                if type_no_array == patch_type_type.String:
+                    hook.data = [(s + '\0').encode(encoding_str) for s in hook.data]
+
+                else:
+                    def encode_wide_char(c, encoding_str):
+                        c_encoded = c.encode(encoding_str)
+                        if len(c_encoded) > 2:
+                            raise UnicodeEncodeError
+
+                        return c_encoded.rjust(2, b'\0')
+
+                    if type_no_array == patch_type_type.WChar:
+                        hook.data = [encode_wide_char(c, encoding_str) for c in hook.data]
+
+                    elif type_no_array == patch_type_type.WString:
+                        hook.data = [encode_wide_char(c, encoding_str) for s in hook.data for c in (s + '\0')]
+
+                    else:
+                        raise UnicodeEncodeError
+
+            except UnicodeEncodeError:
+                error("In %s, failed to encode strings" % hook_field_name)
+                return None
 
         ### Success ###
 

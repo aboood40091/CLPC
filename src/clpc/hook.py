@@ -5,6 +5,30 @@
 from enum import auto as enum_auto
 from enum import IntEnum
 from enum import IntFlag
+import struct
+
+
+STRUCT_U8   = struct.Struct(">B")
+STRUCT_U16  = struct.Struct(">H")
+STRUCT_U32  = struct.Struct(">I")
+STRUCT_U64  = struct.Struct(">Q")
+STRUCT_S8   = struct.Struct(">b")
+STRUCT_S16  = struct.Struct(">h")
+STRUCT_S32  = struct.Struct(">i")
+STRUCT_S64  = struct.Struct(">q")
+STRUCT_F32  = struct.Struct(">f")
+STRUCT_F64  = struct.Struct(">d")
+
+PACK_U8     = STRUCT_U8.pack
+PACK_U16    = STRUCT_U16.pack
+PACK_U32    = STRUCT_U32.pack
+PACK_U64    = STRUCT_U64.pack
+PACK_S8     = STRUCT_S8.pack
+PACK_S16    = STRUCT_S16.pack
+PACK_S32    = STRUCT_S32.pack
+PACK_S64    = STRUCT_S64.pack
+PACK_F32    = STRUCT_F32.pack
+PACK_F64    = STRUCT_F64.pack
 
 
 class BasicHook:
@@ -14,7 +38,11 @@ class BasicHook:
     )
 
     def __init__(self):
-        self.address = 0x00000000
+        self.address = [0x00000000]
+        self.dataCache = None
+
+    def getData(self, *_):
+        raise NotImplementedError
 
     @staticmethod
     def checkObj(obj, hook_field_name, available_options, error=print):
@@ -34,10 +62,13 @@ class BasicHook:
 
     def baseFromObj(self, obj, hook_field_name, error=print):
         is_valid_addr = lambda v: isinstance(v, int) and 0 <= v <= 0xFFFFFFFF
+        is_valid_addr_lst = lambda lst: isinstance(lst, list) and lst and all(is_valid_addr(v) for v in lst)
 
         address = obj["addr"]
-        if not is_valid_addr(address):
-            error("In %s, expected address to be an unsigned 32-bit integer, received: %r" % (hook_field_name, address))
+        if is_valid_addr(address):
+            address = [address]
+        elif not is_valid_addr_lst(address):
+            error("In %s, expected address to be a(n / list of) unsigned 32-bit integer(s), received: %r" % (hook_field_name, address))
             return False
 
         self.address = address
@@ -223,6 +254,67 @@ class PatchHook(BasicHook):
         self.type = PatchHook.Type.Raw
         self.encoding = None
 
+    def getData(self, *_):
+        if self.dataCache is not None:
+            return self.dataCache
+
+        patch_type_type = PatchHook.Type
+
+        type_ = self.type
+        data = self.data
+
+        if type_ == patch_type_type.Raw:
+            data_buf = bytearray.fromhex(data)
+
+        else:
+            encode = {
+                patch_type_type.U8:         PACK_U8,
+                patch_type_type.U16:        PACK_U16,
+                patch_type_type.U32:        PACK_U32,
+                patch_type_type.U64:        PACK_U64,
+                patch_type_type.S8:         PACK_S8,
+                patch_type_type.S16:        PACK_S16,
+                patch_type_type.S32:        PACK_S32,
+                patch_type_type.S64:        PACK_S64,
+                patch_type_type.F32:        PACK_F32,
+                patch_type_type.F64:        PACK_F64,
+                patch_type_type.Char:       lambda v: bytes((ord(v),)),
+                patch_type_type.String:     lambda v: v,
+                patch_type_type.WChar:      lambda v: v,
+                patch_type_type.WString:    lambda v: v
+            }[type_]
+
+            alignment = {
+                patch_type_type.U8:         1,
+                patch_type_type.U16:        2,
+                patch_type_type.U32:        4,
+                patch_type_type.U64:        8,
+                patch_type_type.S8:         1,
+                patch_type_type.S16:        2,
+                patch_type_type.S32:        4,
+                patch_type_type.S64:        8,
+                patch_type_type.F32:        4,
+                patch_type_type.F64:        8,
+                patch_type_type.Char:       1,
+                patch_type_type.String:     4,
+                patch_type_type.WChar:      2,
+                patch_type_type.WString:    4
+            }[type_]
+
+            align = lambda x, y: ((x - 1) | (y - 1)) + 1
+
+            data_buf = bytearray()
+            for v in data:
+                current_pos = len(data_buf)
+                pad_size = align(current_pos, alignment) - current_pos
+                data_buf += b'\0' * pad_size
+                data_buf += encode(v)
+
+            # print(type_, data, data_buf)
+
+        self.dataCache = data_buf
+        return data_buf
+
     @staticmethod
     def fromObj(obj, module_field_name, proj, error=print):
         hook_field_name = "%s Patch Hook" % module_field_name
@@ -311,9 +403,10 @@ class PatchHook(BasicHook):
                 patch_type_type.WString:    4
             }[type_no_array]
 
-            if hook.address & (alignment - 1) != 0:
-                error("In %s, expected \"addr\" [0x%08X] to be aligned by %d" % (hook_field_name, hook.address, alignment))
-                return None
+            for address in hook.address:
+                if address & (alignment - 1) != 0:
+                    error("In %s, expected value in \"addr\" [0x%08X] to be aligned by %d" % (hook_field_name, address, alignment))
+                    return None
 
             if type_ & patch_type_type.Array:
                 data = obj["data"]
@@ -411,7 +504,7 @@ class PatchHook(BasicHook):
                         hook.data = [encode_wide_char(c, encoding_str) for c in hook.data]
 
                     elif type_no_array == patch_type_type.WString:
-                        hook.data = [encode_wide_char(c, encoding_str) for s in hook.data for c in (s + '\0')]
+                        hook.data = [b''.join(encode_wide_char(c, encoding_str) for c in (s + '\0')) for s in hook.data]
 
                     else:
                         raise UnicodeEncodeError
@@ -430,6 +523,12 @@ class NOPHook(BasicHook):
         super().__init__()
 
         self.count = 1
+
+    def getData(self, *_):
+        if self.dataCache is None:
+            self.dataCache = b"\x60\x00\x00\x00" * self.count
+
+        return self.dataCache
 
     @staticmethod
     def fromObj(obj, module_field_name, proj, error=print):
@@ -471,6 +570,9 @@ class NOPHook(BasicHook):
 
 
 class ReturnHook(BasicHook):
+    def getData(self, *_):
+        return b"\x4E\x80\x00\x20"
+
     @staticmethod
     def fromObj(obj, module_field_name, proj, error=print):
         hook_field_name = "%s Return Hook" % module_field_name
@@ -524,6 +626,31 @@ class BranchHook(BasicHook):
 
         self.type = BranchHook.Type.Branch
         self.func = None
+
+    def getData(self, address, symbols):
+        func = self.func
+        if func not in symbols:
+            func = func.strip()
+            if func not in symbols:
+                raise KeyError("In Branch Hook, function symbol not found: %r" % self.func)
+
+        func_address = symbols[func]
+
+        key = (address << 32) | func_address
+        if self.dataCache is None:
+            self.dataCache = {}
+        elif key in self.dataCache:
+            return self.dataCache[key]
+
+        offset = (func_address - address) & 0x03FFFFFC
+
+        instruction = 0x48000000 | offset
+        if self.type == BranchHook.Type.Branch_Link:
+            instruction |= 1
+
+        data_buf = PACK_U32(instruction)
+        self.dataCache[key] = data_buf
+        return data_buf
 
     @staticmethod
     def fromObj(obj, module_field_name, proj, error=print):
@@ -581,6 +708,25 @@ class FuncPtrHook(BasicHook):
         super().__init__()
 
         self.func = None
+
+    def getData(self, _, symbols):
+        func = self.func
+        if func not in symbols:
+            func = func.strip()
+            if func not in symbols:
+                raise KeyError("In Branch Hook, function symbol not found: %r" % self.func)
+
+        func_address = symbols[func]
+
+        key = func_address
+        if self.dataCache is None:
+            self.dataCache = {}
+        elif key in self.dataCache:
+            return self.dataCache[key]
+
+        data_buf = PACK_U32(func_address)
+        self.dataCache[key] = data_buf
+        return data_buf
 
     @staticmethod
     def fromObj(obj, module_field_name, proj, error=print):

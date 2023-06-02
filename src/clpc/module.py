@@ -28,6 +28,13 @@ class Module:
 
         self.path = NormalizePath(path)
 
+        self.align = {
+            ".text":    1,
+            ".rodata":  1,
+            ".data":    1,
+            ".bss":     1
+        }
+
         self.files = ([], [], [])
         self.hooks = []
 
@@ -141,6 +148,7 @@ class Module:
         # print("%s Selected Options Sanity Check" % module_field_name)
 
         available_options = (
+            "Align",
             "Files",
             "Hooks"
         )
@@ -156,6 +164,33 @@ class Module:
         # print("%s Module Initialization" % module_field_name)
 
         module = Module(path)
+
+        ### Align Reading ###
+        # print("%s Align Reading" % module_field_name)
+
+        if "Align" in obj:
+            align = obj["Align"]
+            if align is not None:
+                if not isinstance(align, dict):
+                    error("In %s, expected \"Align\" to be a key-value mapping" % module_field_name)
+                    return None
+
+                is_positive_int = lambda v: isinstance(v, int) and v > 0
+                is_pow_2 = lambda v: is_positive_int(v) and (v & (v - 1) == 0)
+                is_valid_align = lambda v: is_pow_2(v) and v <= 0x2000
+
+                module_align = module.align
+
+                for k, v in align.items():
+                    if k not in module_align:
+                        error("In %s in \"Align\", unexpected key: %r" % (module_field_name, k))
+                        return None
+
+                    if not is_valid_align(v):
+                        error("In %s in \"%s Align\", expected value to be a power of 2 in range (0, 0x2000], received: %r" % (module_field_name, k, v))
+                        return None
+
+                    module_align[k] = v
 
         ### Files List Reading ###
         # print("%s Files List Reading" % module_field_name)

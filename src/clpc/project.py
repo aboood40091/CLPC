@@ -60,6 +60,13 @@ class Project:
             "-Onounroll":               None
         }
 
+        self.minAlign = {
+            ".text":    0x20,
+            ".rodata":  0x20,
+            ".data":    0x20,
+            ".bss":     0x40
+        }
+
         self.fileCache = {}
 
     def processVariables(self, s, error=print):
@@ -205,6 +212,7 @@ class Project:
             "IncludeDirs",
             "RpxDir",
             "ExcludeDefaultBuildOptions",
+            "MinAlign",
             "Modules",
             "BuildOptions",
             "Targets"
@@ -376,6 +384,33 @@ class Project:
                         return None
 
                     del build_options[option]
+
+        ### Minimum Align Reading ###
+        # print("%s Minimum Align Reading" % module_field_name)
+
+        if "MinAlign" in obj:
+            align = obj["MinAlign"]
+            if align is not None:
+                if not isinstance(align, dict):
+                    error("Expected \"MinAlign\" to be a key-value mapping")
+                    return None
+
+                is_positive_int = lambda v: isinstance(v, int) and v > 0
+                is_pow_2 = lambda v: is_positive_int(v) and (v & (v - 1) == 0)
+                is_valid_align = lambda v: is_pow_2(v) and v <= 0x2000
+
+                proj_min_align = proj.minAlign
+
+                for k, v in align.items():
+                    if k not in proj_min_align:
+                        error("In \"MinAlign\", unexpected key: %r" % k)
+                        return None
+
+                    if not is_valid_align(v):
+                        error("In \"%s MinAlign\", expected value to be a power of 2 in range (0, 0x2000], received: %r" % (k, v))
+                        return None
+
+                    proj_min_align[k] = v
 
         ### Modules List Reading ###
         # print("Modules List Reading")

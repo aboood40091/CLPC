@@ -17,17 +17,17 @@ class AddressConvert:
         self.ranges = {}
 
     def addressOutOfRange(self, address):
-        # raise IndexError("Address[0x%08X] out of range" % address)
-        pass
+        raise IndexError("Address[0x%08X] out of range" % address)
 
     def resolve(self, address):
-        for range_, offset in self.ranges.items():
-            if address in range_:
-                address += offset
-                break
+        if self.ranges:
+            for range_, offset in self.ranges.items():
+                if address in range_:
+                    address += offset
+                    break
 
-        else:
-            self.addressOutOfRange(address)
+            else:
+                self.addressOutOfRange(address)
 
         return address
 

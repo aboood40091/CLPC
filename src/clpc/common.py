@@ -20,6 +20,10 @@ WUAPPS_VERSION      = WUAPPS_VERSION_MAX
 WUAPPS_VERSION_STR  = WUAPPS_VERSION_MAX_STR
 
 
+def align(x, y):
+    return ((x - 1) | (y - 1)) + 1
+
+
 STRUCT_U8   = struct.Struct(">B")
 STRUCT_U16  = struct.Struct(">H")
 STRUCT_U32  = struct.Struct(">I")

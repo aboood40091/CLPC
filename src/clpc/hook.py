@@ -9,6 +9,7 @@ from enum import IntFlag
 
 
 # Local
+from .common import align
 from .common import PACK_F32
 from .common import PACK_F64
 from .common import PACK_S16
@@ -291,12 +292,12 @@ class PatchHook(BasicHook):
                 patch_type_type.WString:    4
             }[type_]
 
-            align = lambda x, y: ((x - 1) | (y - 1)) + 1
+            f_align = align
 
             data_buf = bytearray()
             for v in data:
                 current_pos = len(data_buf)
-                pad_size = align(current_pos, alignment) - current_pos
+                pad_size = f_align(current_pos, alignment) - current_pos
                 data_buf += b'\0' * pad_size
                 data_buf += encode(v)
 

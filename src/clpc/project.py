@@ -283,6 +283,12 @@ class Project:
         if name is None:
             return None
 
+        is_valid_filename = IsValidFilename
+
+        if not is_valid_filename(name):
+            error("Project name is invalid (cannot be used as filename): %r" % name)
+            return None
+
         proj.name = name
 
         ### Modules Base Directory Reading ###
@@ -497,8 +503,6 @@ class Project:
 
                 is_str = lambda s: isinstance(s, str)
                 is_non_null_str = lambda s: s and is_str(s)
-
-                is_valid_filename = IsValidFilename
 
                 targets_new = {}
 

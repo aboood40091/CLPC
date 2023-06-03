@@ -559,6 +559,9 @@ class Project:
                 cycles_resolved = []
 
                 for target_name, target in targets_new.items():
+                    if target in cycles_resolved:
+                        continue
+
                     current = target
                     bases = [current]
                     while current.base is not None:

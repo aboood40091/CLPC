@@ -541,9 +541,17 @@ def buildProject(proj, target_name, platform_type, error=print):
         if bss is not None:
             data_end = max(data_end, bss.vAddr + bss.size_)
 
+        dyna_end = syms_addr
+
         rpl_fileinfo_data[4:8]       = struct.pack(">I", text_end - 0x02000000)
+
         if data_end > 0:
+            assert data_end > base_data_end
             rpl_fileinfo_data[12:16] = struct.pack(">I", data_end - 0x10000000)
+
+        if dyna_end > base_dyna_end:
+            rpl_fileinfo_data[20:24] = struct.pack(">I", dyna_end - 0xC0000000)
+            rpl_fileinfo_data[76:80] = b'\0\0\0\0'
 
         if rela_text:
             if symtab_index != -1:
@@ -655,7 +663,7 @@ def buildProject(proj, target_name, platform_type, error=print):
                     # print("Patched %d byte(s) at address: 0x%08X" % (data_len, address))
 
         z_crc32 = zlib.crc32
-        rpl_crcs.data = b''.join(struct.pack(">I", (z_crc32(section.data) & 0xFFFFFFFF)) for section in base_elf.secHeadEnts)
+        rpl_crcs.data = b''.join((struct.pack(">I", (z_crc32(section.data) & 0xFFFFFFFF)) if section.type not in (8, 0x80000003) and section.data else b'\0\0\0\0') for section in base_elf.secHeadEnts)
 
         # TODO(aboood40091): Strip filename symbols
         # TODO(aboood40091): Strip "/DISCARD/" and ".comment" sections

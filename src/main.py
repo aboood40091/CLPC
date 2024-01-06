@@ -720,7 +720,6 @@ def buildProject(proj, target_name, platform_type, error=print):
 
 
 def main():
-    print(GHS_PATH)
     if not os.path.isfile(os.path.join(GHS_PATH, "gbuild.exe")):
         print("Could not locate MULTI Green Hills Software! Did you set its path?")
         return

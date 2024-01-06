@@ -17,7 +17,7 @@ import sys
 
 
 # Change the following (use / instead of \)
-GHS_PATH = os.environ.get("CLPC_GHS_DIR", "D:/Greenhills/ghs/multi5327")
+GHS_PATH = os.environ.get("GHS_ROOT", "D:/Greenhills/ghs/multi5327")
 wiiurpxtool = os.environ.get("CLPC_WIIURPXTOOL_PATH", "D:/NSMBU RE/v1.3.0/code/wiiurpxtool.exe")
 
 

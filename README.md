@@ -11,7 +11,7 @@ You will need the tools below to build projects using this program:
 Then you either set their path in `main.py` or you can add these to your environment variables:
 
 ```env
-CLPC_GHS_DIR=C:/<ghs_install_dir>/ghs/multi327
+GHS_ROOT=C:/<ghs_install_dir>/multi5327
 CLPC_WIIURPXTOOL_PATH=C:/<any_dir>/wiiurpxtool.exe
 ```
 

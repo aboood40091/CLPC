@@ -13,11 +13,12 @@ import os
 import struct
 import subprocess
 import zlib
+import sys
 
 
 # Change the following (use / instead of \)
-GHS_PATH = "D:/Greenhills/ghs/multi5327"
-wiiurpxtool = "D:/NSMBU RE/v1.3.0/code/wiiurpxtool.exe"
+GHS_PATH = os.environ.get("GHS_ROOT", "D:/Greenhills/ghs/multi5327")
+wiiurpxtool = os.environ.get("CLPC_WIIURPXTOOL_PATH", "D:/NSMBU RE/v1.3.0/code/wiiurpxtool.exe")
 
 
 GPJ_TEMPLATE = """#!gbuild
@@ -709,7 +710,11 @@ def main():
         print("While trying to parse project, encountered the following error:\n")
         print(*args, **kargs)
 
-    file_path = input("Enter project.yaml path: ")
+    if len(sys.argv) > 1:
+        file_path = sys.argv[1]
+    else:
+        file_path = input("Enter project.yaml path: ")
+
     if not file_path:
         return
 

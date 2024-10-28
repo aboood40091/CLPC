@@ -323,24 +323,6 @@ def buildProject(proj, target_name, platform_type, error=print):
 
     print("\nLinking...")
 
-    ### Remove type 11 relocations ###
-
-    for fname in obj_files:
-        obj = ELF(fname)
-
-        for entry in obj.secHeadEnts:
-            if entry.type != 4 or not entry.relocations:
-                continue
-
-            remove_indices = [i for i, rel in enumerate(entry.relocations) if (rel.info & 0xFF) == 0x0B]
-            for i in reversed(remove_indices):
-                del entry.relocations[i]
-
-        with open(fname, "wb") as outf:
-            outf.write(obj.saveRel())
-
-    ##################################
-
     if platform_type != PlatformType.CafeLoader and addrconv is None:
         f_addrconv_resolve = None
         symbols = dict(proj.symbols)

@@ -534,49 +534,90 @@ class Project:
 
                         bases.append(targets_new[base_name])
 
-                ### Target Bases List Join ###
-
-                for target_name, target in targets_new.items():
-                    bases = target.bases
-                    if bases:
-                        base = Target()
-                        base.copy(bases[0])
-
-                        target_field_name = "Target %r" % target_name
-
-                        for other_base in bases[1:]:
-                            if not base.join(other_base, target_field_name, error):
-                                return None
-
-                        # print("%s has base: %r" % (target_field_name, base.name))
-                        target.base = base
-
-                    # else:
-                    #     assert not target.base
-
                 ### Target Extension Cycle Detection ###
 
-                cycles_resolved = []
+                UNVISITED, VISITING, DONE = 0, 1, 2
+                visit_state = dict.fromkeys(targets_new, UNVISITED)
 
-                for target_name, target in targets_new.items():
-                    if target in cycles_resolved:
+                for start_name in targets_new:
+                    if visit_state[start_name] != UNVISITED:
                         continue
 
-                    current = target
-                    bases = [current]
-                    while current.base is not None:
-                        base = current.base
-                        if base in cycles_resolved:
-                            break
+                    # Iterative DFS, so deep chains cannot exhaust the stack
+                    visit_state[start_name] = VISITING
+                    stack = [(start_name, iter(targets_new[start_name].baseNames))]
 
-                        if base in bases:
-                            error("Detected cycle while trying to resolve bases for target: %r" % target_name)
-                            return None
+                    while stack:
+                        cur_name, base_names_it = stack[-1]
 
-                        bases.append(base)
-                        current = base
+                        for base_name in base_names_it:
+                            if visit_state[base_name] == VISITING:
+                                error("Detected cycle while trying to resolve bases for target: %r" % base_name)
+                                return None
 
-                    cycles_resolved.extend(bases)
+                            if visit_state[base_name] == UNVISITED:
+                                visit_state[base_name] = VISITING
+                                stack.append((base_name, iter(targets_new[base_name].baseNames)))
+                                break
+
+                        else:
+                            visit_state[cur_name] = DONE
+                            stack.pop()
+
+                ### Target Base Chain Linearization ###
+
+                linearized = {}
+
+                def linearize(name):
+                    chain = linearized.get(name)
+                    if chain is not None:
+                        return chain
+
+                    sequence = [name]
+
+                    for base_name in reversed(targets_new[name].baseNames):
+                        sequence.extend(linearize(base_name))
+
+                    chain = []
+                    seen = set()
+
+                    for ancestor_name in reversed(sequence):
+                        if ancestor_name not in seen:
+                            seen.add(ancestor_name)
+                            chain.append(ancestor_name)
+
+                    chain.reverse()
+
+                    linearized[name] = chain
+                    return chain
+
+                for target_name, target in targets_new.items():
+                    ancestor_names = linearize(target_name)[1:]
+                    if not ancestor_names:
+                        # assert target.base is None
+                        continue
+
+                    chain_head = None
+                    prev_link = None
+
+                    for ancestor_name in ancestor_names:
+                        link = Target()
+                        link.copy(targets_new[ancestor_name])
+
+                        link.baseNames = None
+                        link.bases = None
+                        link.base = None
+
+                        if prev_link is None:
+                            chain_head = link
+
+                        else:
+                            prev_link.base = link
+
+                        prev_link = link
+
+                    # print("%s has base chain: %r" % (target_name, ancestor_names))
+                    target.base = chain_head
 
                 ## Target Address Conversion Map Reading ###
 
@@ -584,10 +625,10 @@ class Project:
                     if target.isAbstract:
                         continue
 
+                    target_field_name = "Target %r" % target_name
+
                     addr_map_name = target.addrMapName
                     if addr_map_name == "@inherit":
-                        target_field_name = "Target %r" % target_name
-
                         prev_base = target
                         base = target.base
 
@@ -650,6 +691,9 @@ class Project:
                 ### Target Base RPX Filename Resolution ###
 
                 for target_name, target in targets_new.items():
+                    if target.isAbstract:
+                        continue
+
                     if target.baseRpxName == "@inherit":
                         target_field_name = "Target %r" % target_name
 

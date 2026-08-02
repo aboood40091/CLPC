@@ -47,10 +47,10 @@ class Target:
         self.addrMapName            = other.addrMapName
         self.addrMap                = other.addrMap
         self.baseRpxName            = other.baseRpxName
-        self.remove_Modules         = other.remove_Modules
-        self.remove_BuildOptions    = other.remove_BuildOptions
-        self.add_Modules            = other.add_Modules
-        self.add_BuildOptions       = other.add_BuildOptions
+        self.remove_Modules         = list(other.remove_Modules)
+        self.remove_BuildOptions    = list(other.remove_BuildOptions)
+        self.add_Modules            = dict(other.add_Modules)
+        self.add_BuildOptions       = list(other.add_BuildOptions)
 
     def join(self, other, target_field_name, error=print):
         self.isAbstract = True

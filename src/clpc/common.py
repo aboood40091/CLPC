@@ -52,9 +52,9 @@ FILENAME_SEARCH_RE_OBJ = re.compile(r'[^A-Za-z0-9_\-.,+\(\)\ ]')
 
 def IsValidFilename(s):
     # https://stackoverflow.com/a/8686943
-    return not (s and
+    return bool(s and
                 isinstance(s, str) and
-                FILENAME_SEARCH_RE_OBJ.search(s) and
+                not FILENAME_SEARCH_RE_OBJ.search(s) and
                 not s.startswith('-') and
                 not s.endswith('.'))
 

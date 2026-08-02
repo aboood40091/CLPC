@@ -487,7 +487,7 @@ class PatchHook(BasicHook):
                     def encode_wide_char(c, encoding_str):
                         c_encoded = c.encode(encoding_str)
                         if len(c_encoded) > 2:
-                            raise UnicodeEncodeError
+                            raise UnicodeEncodeError(encoding_str, c, 0, len(c), "wide character does not fit in 2 bytes")
 
                         return c_encoded.rjust(2, b'\0')
 
@@ -498,7 +498,7 @@ class PatchHook(BasicHook):
                         hook.data = [b''.join(encode_wide_char(c, encoding_str) for c in (s + '\0')) for s in hook.data]
 
                     else:
-                        raise UnicodeEncodeError
+                        raise UnicodeEncodeError(encoding_str, "", 0, 0, "unexpected data type for string encoding")
 
             except UnicodeEncodeError:
                 error("In %s, failed to encode strings" % hook_field_name)

@@ -52,53 +52,6 @@ class Target:
         self.add_Modules            = dict(other.add_Modules)
         self.add_BuildOptions       = list(other.add_BuildOptions)
 
-    def join(self, other, target_field_name, error=print):
-        self.isAbstract = True
-
-        # We don't care about these
-        self.baseNames = None
-        self.bases = None
-        self.addrMap = None
-
-        if other.addrMapName != "@inherit":
-            self.addrMapName = other.addrMapName
-
-        if other.baseRpxName != "@inherit":
-            self.baseRpxName = other.baseRpxName
-
-        for module_name in other.remove_Modules:
-            if module_name in self.add_Modules:
-                del self.add_Modules[module_name]
-
-            else:
-                self.remove_Modules.append(module_name)
-
-        for module_name, module in other.add_Modules.items():
-            if module_name in self.add_Modules:
-                error("In %s, trying to add module from base %r that already exists in base(s): %r,\n"
-                      "%s" % (target_field_name, other.name, self.name, module_name))
-                return False
-
-            self.add_Modules[module_name] = module
-
-        for option in other.remove_BuildOptions:
-            if option in self.add_BuildOptions:
-                self.add_BuildOptions.remove(option)
-
-            else:
-                self.remove_BuildOptions.append(option)
-
-        for option in other.add_BuildOptions:
-            if option in self.add_BuildOptions:
-                error("In %s, trying to add build option from base %r that already exists in base(s): %r,\n"
-                      "%s" % (target_field_name, other.name, self.name, option))
-                return False
-
-            self.add_BuildOptions.append(option)
-
-        self.name = " ".join((self.name, "|", other.name))
-        return True
-
     @staticmethod
     def fromObj(obj, name, proj, error=print):
         target_field_name = "Target %r" % name

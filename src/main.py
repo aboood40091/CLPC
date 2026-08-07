@@ -16,9 +16,9 @@ import zlib
 import sys
 
 
-# Change the following (use / instead of \)
-GHS_PATH = os.environ.get("GHS_ROOT", "D:/Greenhills/ghs/multi5327")
-wiiurpxtool = os.environ.get("CLPC_WIIURPXTOOL_PATH", "D:/NSMBU RE/v1.3.0/code/wiiurpxtool.exe")
+
+GHS_PATH = os.environ.get("GHS_ROOT", "/home/Arulo/Dokumente/ghs/multi5327/")
+wiiurpxtool = os.environ.get("CLPC_WIIURPXTOOL_PATH", "/home/Arulo/Dokumente/wiiurpxtool/wiiurpxtool.exe")
 
 
 GPJ_TEMPLATE = """#!gbuild
@@ -226,9 +226,7 @@ def buildProject(proj, target_name, platform_type, error=print):
 
         print("Decompressing RPX...")
         if not os.path.isfile(base_elf_path):
-            DETACHED_PROCESS = 0x00000008
-            subprocess.call("\"%s\" -d \"%s\" \"%s\"" % (wiiurpxtool, base_rpx_path, base_elf_path), creationflags=DETACHED_PROCESS)
-
+            subprocess.call(['wine', wiiurpxtool, '-d', base_rpx_path, base_elf_path])
             assert os.path.isfile(base_elf_path)
 
         print("Loading ELF...\n")
@@ -313,7 +311,7 @@ def buildProject(proj, target_name, platform_type, error=print):
     with open(gpj_path, 'w', encoding="utf8") as outf:
         outf.write(gpj_str)
 
-    cmd = "\"%s\" -top \"%s\"" % (os.path.join(GHS_PATH, "gbuild"), gpj_path)
+    cmd = ['wine', os.path.join(GHS_PATH, "gbuild.exe"), '-top', gpj_path]
     error_code = subprocess.call(cmd)
     if error_code:
         error("Build failed!!\n"
@@ -358,15 +356,15 @@ def buildProject(proj, target_name, platform_type, error=print):
     proj_obj_path = os.path.join(target_temp_path, "%s.o" % proj_name)
 
     cmd_lst = [
-        "\"%s\"" % os.path.join(GHS_PATH, "elxr"),
-        "-T \"%s\"" % symbol_map_path,
-        "-T \"%s\"" % proj_ld_path,
-        "-o \"%s\"" % proj_obj_path
+        'wine',
+        os.path.join(GHS_PATH, "elxr.exe"),
+        '-T', symbol_map_path,
+        '-T', proj_ld_path,
+        '-o', proj_obj_path
     ]
-    cmd_lst.extend(map(lambda s: "\"%s\"" % s, obj_files))
+    cmd_lst.extend(obj_files)
 
-    cmd = ' '.join(cmd_lst)
-    error_code = subprocess.call(cmd)
+    error_code = subprocess.call(cmd_lst)
     if error_code:
         error("Link Failed!!\n"
               "Error code: %i" % error_code)
@@ -660,8 +658,7 @@ def buildProject(proj, target_name, platform_type, error=print):
             outf.write(buf)
 
         print("Compressing RPX...")
-        DETACHED_PROCESS = 0x00000008
-        subprocess.call("\"%s\" -c \"%s\" \"%s\"" % (wiiurpxtool, elf_path, rpx_path), creationflags=DETACHED_PROCESS)
+        subprocess.call(['wine', wiiurpxtool, '-c', elf_path, rpx_path])
 
     elif platform_type == PlatformType.CafeLoader:
         print("Building patches...")
